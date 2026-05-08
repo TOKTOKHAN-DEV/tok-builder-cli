@@ -44,11 +44,27 @@ if (( NODE_MAJOR < MIN_NODE_MAJOR )); then
   exit 1
 fi
 
+# Ensure pnpm is available. Node 16.10+ ships corepack; we activate the project's
+# packageManager via corepack so dev/lockfile work even on a fresh machine.
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "  pnpm not found — activating via corepack..."
+  if command -v corepack >/dev/null 2>&1; then
+    corepack enable >/dev/null 2>&1 || true
+    corepack prepare pnpm@latest --activate >/dev/null 2>&1 || {
+      echo "✗ corepack failed to install pnpm. Run: npm i -g pnpm" >&2
+      exit 1
+    }
+  else
+    echo "✗ pnpm and corepack both unavailable. Run: npm i -g pnpm" >&2
+    exit 1
+  fi
+fi
+
 if ! gh auth status >/dev/null 2>&1; then
   echo "✗ not logged in to GitHub. Run: gh auth login" >&2
   exit 1
 fi
-echo "✓ preflight OK (Node ${NODE_VER})"
+echo "✓ preflight OK (Node ${NODE_VER}, pnpm $(pnpm -v))"
 
 echo "=== fetching project metadata from platform ==="
 META=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "$PLATFORM_URL/api/agent/auth/verify")
@@ -101,11 +117,11 @@ chmod 600 "$NPMRC"
 unset GH_TOKEN_VALUE
 echo "✓ ~/.npmrc configured (mode 0600)"
 
-echo "=== installing dependencies ==="
-npm install
+echo "=== installing dependencies (pnpm) ==="
+pnpm install
 
 echo "=== running tokb init ==="
-npx tokb init "$TOKEN" --platform-url "$PLATFORM_URL"
+pnpm exec tokb init "$TOKEN" --platform-url "$PLATFORM_URL"
 
 echo ""
 echo "✓ Bootstrap complete."
