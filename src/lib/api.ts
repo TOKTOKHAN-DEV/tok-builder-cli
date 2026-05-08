@@ -28,8 +28,15 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 export type ArtifactKind = 'spec' | 'code' | 'doc' | 'config' | 'test' | 'other'
+export const ARTIFACT_KINDS = ['spec', 'code', 'doc', 'config', 'test', 'other'] as const
 
-export async function pushTaskProgress(taskId: string, status: string, note?: string) {
+export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'done' | 'skipped'
+export const TASK_STATUSES = ['pending', 'in_progress', 'blocked', 'done', 'skipped'] as const
+
+export type RunCompletionStatus = 'completed' | 'failed'
+export const RUN_COMPLETION_STATUSES = ['completed', 'failed'] as const
+
+export async function pushTaskProgress(taskId: string, status: TaskStatus, note?: string) {
   return postJson(`/api/agent/tasks/${taskId}/progress`, { status, notes: note })
 }
 
@@ -43,7 +50,7 @@ export async function pushTaskArtifacts(
 export type ProjectState = {
   plan: { id: string; status: string; current_phase_id: string | null } | null
   run: { id: string; status: string } | null
-  tasks: Array<{ id: string; phase_slug: string; status: string; title: string }>
+  tasks: Array<{ id: string; phase_slug: string; status: TaskStatus; title: string }>
 }
 
 export async function getProjectState(projectId: string): Promise<ProjectState> {

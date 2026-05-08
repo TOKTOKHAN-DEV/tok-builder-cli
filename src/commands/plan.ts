@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { planUpsert, planTaskAdd } from '../lib/api.js'
-import { requireConfig } from '../lib/config.js'
+import { requireField } from '../lib/config.js'
 
 export function planCommand(program: Command): void {
   const plan = program.command('plan').description('Build plan management')
@@ -9,12 +9,8 @@ export function planCommand(program: Command): void {
     .command('upsert <jsonPath>')
     .description('Bulk upsert plan tasks from JSON file')
     .action(async (jsonPath: string) => {
-      const cfg = await requireConfig()
-      if (!cfg.plan_id) {
-        console.error('plan_id missing in .pj/config.json. Run `pj init` first.')
-        process.exit(1)
-      }
-      await planUpsert(cfg.plan_id, jsonPath)
+      const planId = await requireField('plan_id')
+      await planUpsert(planId, jsonPath)
       console.log('plan upserted')
     })
 
@@ -22,12 +18,8 @@ export function planCommand(program: Command): void {
     .command('task-add <jsonPath>')
     .description('Add a single task to current plan')
     .action(async (jsonPath: string) => {
-      const cfg = await requireConfig()
-      if (!cfg.plan_id) {
-        console.error('plan_id missing in .pj/config.json. Run `pj init` first.')
-        process.exit(1)
-      }
-      await planTaskAdd(cfg.plan_id, jsonPath)
+      const planId = await requireField('plan_id')
+      await planTaskAdd(planId, jsonPath)
       console.log('task added')
     })
 }

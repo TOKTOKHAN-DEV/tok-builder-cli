@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander'
+import { ZodError } from 'zod'
 import { loginCommand } from './commands/login.js'
 import { taskCommand } from './commands/task.js'
 import { planCommand } from './commands/plan.js'
@@ -8,18 +9,36 @@ import { phaseCommand } from './commands/phase.js'
 import { resumeCommand } from './commands/resume.js'
 import { initCommand } from './commands/init.js'
 
+process.on('unhandledRejection', (err) => {
+  if (err instanceof ZodError) {
+    console.error('Invalid input:')
+    for (const issue of err.issues) {
+      console.error(`  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+    }
+  } else if (err instanceof Error) {
+    console.error(err.message)
+  } else {
+    console.error(err)
+  }
+  process.exit(1)
+})
+
 const program = new Command()
 program
   .name('pj')
   .description('pj-platform CLI for outsourcing build orchestration')
   .version('0.1.0')
 
-loginCommand(program)
-taskCommand(program)
-planCommand(program)
-runCommand(program)
-phaseCommand(program)
-resumeCommand(program)
-initCommand(program)
+for (const register of [
+  loginCommand,
+  taskCommand,
+  planCommand,
+  runCommand,
+  phaseCommand,
+  resumeCommand,
+  initCommand,
+]) {
+  register(program)
+}
 
 program.parse()

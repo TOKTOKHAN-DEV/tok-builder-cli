@@ -1,16 +1,23 @@
-import { Command } from 'commander'
-import { pushTaskProgress, pushTaskArtifacts, type ArtifactKind } from '../lib/api.js'
-
-const ARTIFACT_KINDS: ReadonlyArray<ArtifactKind> = ['spec', 'code', 'doc', 'config', 'test', 'other']
+import { Command, Argument, Option } from 'commander'
+import {
+  pushTaskProgress,
+  pushTaskArtifacts,
+  ARTIFACT_KINDS,
+  TASK_STATUSES,
+  type ArtifactKind,
+  type TaskStatus,
+} from '../lib/api.js'
 
 export function taskCommand(program: Command): void {
   const task = program.command('task').description('Per-task progress + artifact reporting')
 
   task
-    .command('progress <id> <status>')
-    .description('Report task status (pending|in_progress|blocked|done|skipped)')
+    .command('progress')
+    .description('Report task status')
+    .addArgument(new Argument('<id>', 'Task UUID'))
+    .addArgument(new Argument('<status>', 'Task status').choices([...TASK_STATUSES]))
     .option('--note <note>', 'Optional note attached to the progress event')
-    .action(async (id: string, status: string, opts: { note?: string }) => {
+    .action(async (id: string, status: TaskStatus, opts: { note?: string }) => {
       await pushTaskProgress(id, status, opts.note)
       console.log(`task ${id} → ${status}`)
     })
@@ -27,13 +34,11 @@ export function taskCommand(program: Command): void {
   artifact
     .command('add <id> <path>')
     .description('Attach an artifact path to a task')
-    .option('--kind <kind>', `One of: ${ARTIFACT_KINDS.join('|')}`, 'other')
-    .action(async (id: string, path: string, opts: { kind: string }) => {
-      if (!ARTIFACT_KINDS.includes(opts.kind as ArtifactKind)) {
-        console.error(`Invalid --kind. Expected one of: ${ARTIFACT_KINDS.join(', ')}`)
-        process.exit(1)
-      }
-      await pushTaskArtifacts(id, [{ path, kind: opts.kind as ArtifactKind }])
+    .addOption(
+      new Option('--kind <kind>', 'Artifact kind').choices([...ARTIFACT_KINDS]).default('other'),
+    )
+    .action(async (id: string, path: string, opts: { kind: ArtifactKind }) => {
+      await pushTaskArtifacts(id, [{ path, kind: opts.kind }])
       console.log(`artifact added to task ${id}: ${path}`)
     })
 }
