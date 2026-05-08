@@ -14,8 +14,8 @@ type VerifyResponse = {
 export function initCommand(program: Command): void {
   program
     .command('init')
-    .argument('<token>', 'pjp_apt_* token')
-    .description('Verify token + persist project metadata to .pj/config.json')
+    .argument('<token>', 'tokb_apt_* token')
+    .description('Verify token + persist project metadata to .tokb/config.json')
     .option('--platform-url <url>', 'platform base URL', 'https://pj-platform.vercel.app')
     .action(async (token: string, opts: { platformUrl: string }) => {
       console.log('=== preflight ===')

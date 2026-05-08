@@ -24,7 +24,7 @@ export function taskCommand(program: Command): void {
 
   task
     .command('done <id>')
-    .description('Shortcut for `pj task progress <id> done`')
+    .description('Shortcut for `tokb task progress <id> done`')
     .action(async (id: string) => {
       await pushTaskProgress(id, 'done')
       console.log(`task ${id} → done`)

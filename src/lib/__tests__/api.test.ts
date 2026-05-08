@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 
 vi.mock('../config.js', () => ({
   requireConfig: vi.fn(async () => ({
-    push_token: 'pjp_apt_test',
+    push_token: 'tokb_apt_test',
     platform_base_url: 'https://example.com',
   })),
 }))
@@ -24,7 +24,7 @@ describe('api', () => {
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
-          Authorization: 'Bearer pjp_apt_test',
+          Authorization: 'Bearer tokb_apt_test',
           'Content-Type': 'application/json',
         }),
         body: JSON.stringify({ status: 'in_progress', notes: 'starting' }),
@@ -48,7 +48,7 @@ describe('api', () => {
     expect(fetch).toHaveBeenCalledWith(
       'https://example.com/api/agent/projects/project-1/state',
       expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer pjp_apt_test' }),
+        headers: expect.objectContaining({ Authorization: 'Bearer tokb_apt_test' }),
       }),
     )
   })
