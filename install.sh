@@ -64,6 +64,29 @@ echo "=== cloning $REPO_URL ==="
 gh repo clone -- "$REPO_URL" "$SLUG"
 cd "./$SLUG"
 
+# Configure npm auth for GitHub Packages (private registry for @toktokhan-dev/*).
+# Without this, `npm install` of any @toktokhan-dev/* dep fails with 401.
+echo "=== configuring ~/.npmrc for GitHub Packages ==="
+GH_TOKEN_VALUE=$(gh auth token | tr -d '\r\n[:space:]')
+if [[ -z "$GH_TOKEN_VALUE" ]]; then
+  echo "✗ failed to read gh auth token" >&2
+  exit 1
+fi
+NPMRC="$HOME/.npmrc"
+touch "$NPMRC"
+chmod 600 "$NPMRC"
+# Idempotent: drop any existing @toktokhan-dev scope or npm.pkg.github.com auth lines, then append fresh.
+TMP_NPMRC=$(mktemp)
+grep -v -E '^(@toktokhan-dev:registry=|//npm\.pkg\.github\.com/:_authToken=)' "$NPMRC" > "$TMP_NPMRC" || true
+mv "$TMP_NPMRC" "$NPMRC"
+{
+  echo "@toktokhan-dev:registry=https://npm.pkg.github.com"
+  echo "//npm.pkg.github.com/:_authToken=$GH_TOKEN_VALUE"
+} >> "$NPMRC"
+chmod 600 "$NPMRC"
+unset GH_TOKEN_VALUE
+echo "✓ ~/.npmrc configured (mode 0600)"
+
 echo "=== installing dependencies ==="
 npm install
 
