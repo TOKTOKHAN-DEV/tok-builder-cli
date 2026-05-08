@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { requireConfig } from './config.js'
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
@@ -40,11 +41,29 @@ export async function pushTaskArtifacts(
 }
 
 export type ProjectState = {
-  plan: { id: string; status: string } | null
+  plan: { id: string; status: string; current_phase_id: string | null } | null
   run: { id: string; status: string } | null
   tasks: Array<{ id: string; phase_slug: string; status: string; title: string }>
 }
 
 export async function getProjectState(projectId: string): Promise<ProjectState> {
   return getJson<ProjectState>(`/api/agent/projects/${projectId}/state`)
+}
+
+export async function planUpsert(planId: string, jsonPath: string) {
+  const body = JSON.parse(await readFile(jsonPath, 'utf-8'))
+  return postJson(`/api/agent/plans/${planId}/upsert`, body)
+}
+
+export async function planTaskAdd(planId: string, jsonPath: string) {
+  const body = JSON.parse(await readFile(jsonPath, 'utf-8'))
+  return postJson(`/api/agent/plans/${planId}/tasks`, body)
+}
+
+export async function runAccept(runId: string) {
+  return postJson(`/api/agent/runs/${runId}/accept`, {})
+}
+
+export async function runComplete(runId: string, status: 'completed' | 'failed', errorMessage?: string) {
+  return postJson(`/api/agent/runs/${runId}/complete`, { status, error_message: errorMessage })
 }
