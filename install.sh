@@ -17,6 +17,8 @@ if [[ ! "$PLATFORM_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
   exit 1
 fi
 
+MIN_NODE_MAJOR=24
+
 echo "=== preflight ==="
 for cmd in node git gh tmux; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -24,17 +26,29 @@ for cmd in node git gh tmux; do
     case "$cmd" in
       tmux) echo "  brew install tmux  # macOS" >&2 ;;
       gh)   echo "  brew install gh && gh auth login  # macOS" >&2 ;;
-      node) echo "  install Node 20+ via nvm/asdf/brew" >&2 ;;
+      node) echo "  install Node ${MIN_NODE_MAJOR}+ via nvm/asdf/brew" >&2 ;;
     esac
     exit 1
   fi
 done
 
+NODE_VER=$(node -v)
+if [[ ! "$NODE_VER" =~ ^v([0-9]+)\. ]]; then
+  echo "✗ failed to parse Node version: $NODE_VER" >&2
+  exit 1
+fi
+NODE_MAJOR="${BASH_REMATCH[1]}"
+if (( NODE_MAJOR < MIN_NODE_MAJOR )); then
+  echo "✗ Node >=${MIN_NODE_MAJOR} required, got ${NODE_VER}" >&2
+  echo "  upgrade via nvm/asdf/brew, then retry" >&2
+  exit 1
+fi
+
 if ! gh auth status >/dev/null 2>&1; then
   echo "✗ not logged in to GitHub. Run: gh auth login" >&2
   exit 1
 fi
-echo "✓ preflight OK"
+echo "✓ preflight OK (Node ${NODE_VER})"
 
 echo "=== fetching project metadata from platform ==="
 META=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "$PLATFORM_URL/api/agent/auth/verify")

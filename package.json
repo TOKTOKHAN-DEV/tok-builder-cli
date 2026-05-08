@@ -1,6 +1,6 @@
 {
   "name": "@toktokhan-dev/tok-builder-cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": false,
   "description": "pj-platform build-plan helper CLI (login/task/plan/run/phase/resume/init). Internal to toktokhan-dev.",
   "repository": {
@@ -26,7 +26,7 @@
     "vitest": "^2.0.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
