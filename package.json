@@ -21,5 +21,13 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "files": [
+    "dist",
+    "install.sh",
+    "README.md"
+  ]
 }
