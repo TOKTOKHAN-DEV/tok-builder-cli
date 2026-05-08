@@ -6,12 +6,16 @@ if [[ -z "$TOKEN" ]]; then
   echo "Usage: curl -fsSL https://raw.githubusercontent.com/toktokhan-dev/pj-cli/main/install.sh | sh -s <token>" >&2
   exit 1
 fi
-if [[ ! "$TOKEN" =~ ^pjp_apt_ ]]; then
-  echo "Invalid token format. Expected pjp_apt_*" >&2
+if [[ ! "$TOKEN" =~ ^pjp_apt_[A-Za-z0-9_-]+$ ]]; then
+  echo "Invalid token format. Expected pjp_apt_<base64url>" >&2
   exit 1
 fi
 
 PLATFORM_URL="${PJ_PLATFORM_URL:-https://pj-platform.vercel.app}"
+if [[ ! "$PLATFORM_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
+  echo "Invalid PJ_PLATFORM_URL — must be https://<host>" >&2
+  exit 1
+fi
 
 echo "=== preflight ==="
 for cmd in node git gh tmux; do
@@ -34,20 +38,31 @@ echo "✓ preflight OK"
 
 echo "=== fetching project metadata from platform ==="
 META=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "$PLATFORM_URL/api/agent/auth/verify")
+
+# Parse fields via process.argv (no shell interpolation into JS source).
 parse_field() {
-  echo "$META" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const o=JSON.parse(d);process.stdout.write(o['$1']||'')})"
+  PJ_META="$META" node -e '
+    const o = JSON.parse(process.env.PJ_META);
+    process.stdout.write(String(o[process.argv[1]] ?? ""));
+  ' "$1"
 }
+
 REPO_URL=$(parse_field repo_url)
 SLUG=$(parse_field slug)
 
-if [[ -z "$REPO_URL" || -z "$SLUG" ]]; then
-  echo "✗ platform did not return repo metadata (repo_url or slug missing)" >&2
+# Validate platform-supplied values before using them in shell/filesystem.
+if [[ ! "$SLUG" =~ ^[a-zA-Z0-9_-]+$ ]] || [[ ${#SLUG} -gt 64 ]]; then
+  echo "✗ platform returned invalid slug" >&2
+  exit 1
+fi
+if [[ ! "$REPO_URL" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]]; then
+  echo "✗ platform returned invalid repo_url" >&2
   exit 1
 fi
 
 echo "=== cloning $REPO_URL ==="
-gh repo clone "$REPO_URL" "$SLUG"
-cd "$SLUG"
+gh repo clone -- "$REPO_URL" "$SLUG"
+cd "./$SLUG"
 
 echo "=== installing dependencies ==="
 npm install

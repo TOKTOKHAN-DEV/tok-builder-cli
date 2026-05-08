@@ -18,11 +18,6 @@ export function initCommand(program: Command): void {
     .description('Verify token + persist project metadata to .pj/config.json')
     .option('--platform-url <url>', 'platform base URL', 'https://pj-platform.vercel.app')
     .action(async (token: string, opts: { platformUrl: string }) => {
-      if (!token.startsWith('pjp_apt_')) {
-        console.error('Invalid token format. Expected pjp_apt_*')
-        process.exit(1)
-      }
-
       console.log('=== preflight ===')
       const pf = runPreflight()
       if (!pf.ok) {
