@@ -2,14 +2,14 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 
-export const PUSH_TOKEN_PREFIX = 'pjp_apt_'
+export const PUSH_TOKEN_PREFIX = 'tokb_apt_'
 
 const httpsUrl = z
   .url()
   .refine((u) => new URL(u).protocol === 'https:', { message: 'must be https://' })
 
 const ConfigSchema = z.object({
-  push_token: z.string().regex(/^pjp_apt_/, 'must start with pjp_apt_'),
+  push_token: z.string().regex(/^tokb_apt_/, 'must start with tokb_apt_'),
   project_id: z.uuid().optional(),
   plan_id: z.uuid().optional(),
   repo_url: httpsUrl.optional(),
@@ -20,7 +20,7 @@ const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>
 
-const CONFIG_DIR = '.pj'
+const CONFIG_DIR = '.tokb'
 const CONFIG_FILE = 'config.json'
 
 export async function readConfig(cwd: string = process.cwd()): Promise<Config | null> {
@@ -45,7 +45,7 @@ export async function writeConfig(cfg: Partial<Config>, cwd: string = process.cw
 
 export async function requireConfig(cwd: string = process.cwd()): Promise<Config> {
   const cfg = await readConfig(cwd)
-  if (!cfg) throw new Error('No .pj/config.json. Run `pj login <token>` first.')
+  if (!cfg) throw new Error('No .tokb/config.json. Run `tokb login <token>` first.')
   return cfg
 }
 
@@ -55,7 +55,7 @@ export async function requireField<K extends keyof Config>(
   const cfg = await requireConfig()
   const value = cfg[field]
   if (value === undefined || value === null) {
-    throw new Error(`${String(field)} missing in .pj/config.json. Run \`pj init\` first.`)
+    throw new Error(`${String(field)} missing in .tokb/config.json. Run \`tokb init\` first.`)
   }
   return value as NonNullable<Config[K]>
 }

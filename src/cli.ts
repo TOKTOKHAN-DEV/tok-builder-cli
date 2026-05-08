@@ -25,9 +25,9 @@ process.on('unhandledRejection', (err) => {
 
 const program = new Command()
 program
-  .name('pj')
-  .description('pj-platform CLI for outsourcing build orchestration')
-  .version('0.1.0')
+  .name('tokb')
+  .description('tok-builder CLI for outsourcing build orchestration (formerly `pj`)')
+  .version('0.2.0')
 
 for (const register of [
   loginCommand,
