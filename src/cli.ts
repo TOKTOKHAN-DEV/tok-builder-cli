@@ -6,6 +6,7 @@ import { planCommand } from './commands/plan.js'
 import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
 import { resumeCommand } from './commands/resume.js'
+import { initCommand } from './commands/init.js'
 
 const program = new Command()
 program
@@ -19,5 +20,6 @@ planCommand(program)
 runCommand(program)
 phaseCommand(program)
 resumeCommand(program)
+initCommand(program)
 
 program.parse()
