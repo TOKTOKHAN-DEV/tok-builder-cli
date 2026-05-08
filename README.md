@@ -14,8 +14,9 @@ curl -fsSL https://raw.githubusercontent.com/toktokhan-dev/tok-builder-cli/main/
 
 The installer runs preflight (`node`, `git`, `gh`, `tmux` + `gh auth`), fetches
 project metadata from `/api/agent/auth/verify`, validates the platform-supplied
-slug + repo URL, clones the project repo, runs `npm install`, and finalizes
-`.pj/config.json` via `pj init`.
+slug + repo URL, clones the project repo, writes `~/.npmrc` so `npm install`
+can authenticate to the private GitHub Packages registry, runs `npm install`,
+and finalizes `.pj/config.json` via `pj init`.
 
 ## Manual install
 
@@ -23,8 +24,10 @@ slug + repo URL, clones the project repo, runs `npm install`, and finalizes
 npm install -g @toktokhan-dev/tok-builder-cli
 ```
 
-(Requires authenticated access to the toktokhan-dev GitHub Packages registry —
-see `~/.npmrc` setup in the platform docs.)
+(Requires `~/.npmrc` with `@toktokhan-dev:registry=https://npm.pkg.github.com`
+and a `_authToken=` line for `npm.pkg.github.com`. The bootstrap installer
+above writes this for you automatically; for manual installs, run
+`gh auth token` and put it in `~/.npmrc` yourself.)
 
 ## Commands
 
