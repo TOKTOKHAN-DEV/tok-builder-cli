@@ -3,7 +3,7 @@ set -euo pipefail
 
 TOKEN="${1:-}"
 if [[ -z "$TOKEN" ]]; then
-  echo "Usage: curl -fsSL https://raw.githubusercontent.com/toktokhan-dev/pj-cli/main/install.sh | sh -s <token>" >&2
+  echo "Usage: curl -fsSL https://raw.githubusercontent.com/toktokhan-dev/tok-builder-cli/main/install.sh | sh -s <token>" >&2
   exit 1
 fi
 if [[ ! "$TOKEN" =~ ^pjp_apt_[A-Za-z0-9_-]+$ ]]; then
