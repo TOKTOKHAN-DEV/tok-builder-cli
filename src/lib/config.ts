@@ -37,7 +37,7 @@ export async function readConfig(cwd: string = process.cwd()): Promise<Config | 
 
 export async function writeConfig(cfg: Partial<Config>, cwd: string = process.cwd()): Promise<void> {
   const dir = join(cwd, CONFIG_DIR)
-  await mkdir(dir, { recursive: true })
+  await mkdir(dir, { recursive: true, mode: 0o700 })
   const existing = (await readConfig(cwd)) ?? {}
   const merged = ConfigSchema.parse({ ...existing, ...cfg })
   await writeFile(join(dir, CONFIG_FILE), JSON.stringify(merged, null, 2), { mode: 0o600 })

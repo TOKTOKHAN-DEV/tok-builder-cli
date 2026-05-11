@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire } from 'node:module'
 import { Command } from 'commander'
 import { ZodError } from 'zod'
 import { loginCommand } from './commands/login.js'
@@ -8,6 +9,9 @@ import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
 import { resumeCommand } from './commands/resume.js'
 import { initCommand } from './commands/init.js'
+
+const require = createRequire(import.meta.url)
+const pkg = require('../package.json') as { version: string }
 
 process.on('unhandledRejection', (err) => {
   if (err instanceof ZodError) {
@@ -27,7 +31,7 @@ const program = new Command()
 program
   .name('tokb')
   .description('tok-builder CLI for outsourcing build orchestration (formerly `pj`)')
-  .version('0.2.0')
+  .version(pkg.version)
 
 for (const register of [
   loginCommand,
