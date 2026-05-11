@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { writeConfig } from '../lib/config.js'
 import { runPreflight } from '../lib/preflight.js'
+import { verifyToken } from '../lib/api.js'
 
 type VerifyResponse = {
   project_id: string
@@ -28,14 +29,13 @@ export function initCommand(program: Command): void {
       console.log('preflight OK')
 
       console.log('=== verifying token ===')
-      const res = await fetch(`${opts.platformUrl}/api/agent/auth/verify`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) {
-        console.error(`Token verification failed: ${res.status}`)
+      let verified: VerifyResponse
+      try {
+        verified = (await verifyToken(token, opts.platformUrl)) as VerifyResponse
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : String(err))
         process.exit(1)
       }
-      const verified = (await res.json()) as VerifyResponse
 
       await writeConfig({
         push_token: token,

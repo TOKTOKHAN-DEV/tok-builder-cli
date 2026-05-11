@@ -16,7 +16,6 @@ function tryCmd(cmd: string): boolean {
 export function runPreflight(): PreflightResult {
   const failures: string[] = []
 
-  // Self-check the running Node — process.versions.node is what actually ran this CLI.
   const major = parseInt(process.versions.node.split('.')[0]!, 10)
   if (Number.isNaN(major) || major < MIN_NODE_MAJOR) {
     failures.push(`Node >=${MIN_NODE_MAJOR} required, got ${process.versions.node}`)
@@ -24,7 +23,9 @@ export function runPreflight(): PreflightResult {
 
   if (!tryCmd('git --version')) failures.push('git not found')
   if (!tryCmd('gh --version')) failures.push('gh CLI not found — `brew install gh`')
-  if (!tryCmd('tmux -V')) failures.push('tmux not found — required for omc team. `brew install tmux`')
+  if (process.env.PJ_REQUIRE_TMUX === '1' && !tryCmd('tmux -V')) {
+    failures.push('tmux not found — `brew install tmux`')
+  }
 
   if (!tryCmd('gh auth status')) {
     failures.push('not logged in to GitHub. Run `gh auth login`')

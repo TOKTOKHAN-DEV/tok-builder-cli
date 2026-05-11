@@ -8,6 +8,8 @@ resume work after a Claude Code session restart.
 
 ## Bootstrap (one-shot)
 
+> **권장:** 실행 전 [install.sh 내용](https://raw.githubusercontent.com/toktokhan-dev/tok-builder-cli/main/install.sh)을 직접 확인하세요.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/toktokhan-dev/tok-builder-cli/main/install.sh | sh -s tokb_apt_<token>
 ```

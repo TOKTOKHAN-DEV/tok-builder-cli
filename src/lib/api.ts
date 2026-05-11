@@ -1,29 +1,22 @@
 import { readFile } from 'node:fs/promises'
 import { requireConfig } from './config.js'
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const cfg = await requireConfig()
-  const res = await fetch(`${cfg.platform_base_url}${path}`, {
-    method: 'POST',
+  const init: RequestInit = {
+    method,
     headers: {
       'Authorization': `Bearer ${cfg.push_token}`,
-      'Content-Type': 'application/json',
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
-    body: JSON.stringify(body),
-  })
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  }
+  const res = await fetch(`${cfg.platform_base_url}${path}`, init)
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`POST ${path} failed: ${res.status} ${text}`)
+    const truncated = text.length > 200 ? text.slice(0, 200) + '…' : text
+    throw new Error(`${method} ${path} failed: ${res.status} ${truncated}`)
   }
-  return res.json() as Promise<T>
-}
-
-async function getJson<T>(path: string): Promise<T> {
-  const cfg = await requireConfig()
-  const res = await fetch(`${cfg.platform_base_url}${path}`, {
-    headers: { 'Authorization': `Bearer ${cfg.push_token}` },
-  })
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
   return res.json() as Promise<T>
 }
 
@@ -37,14 +30,14 @@ export type RunCompletionStatus = 'completed' | 'failed'
 export const RUN_COMPLETION_STATUSES = ['completed', 'failed'] as const
 
 export async function pushTaskProgress(taskId: string, status: TaskStatus, note?: string) {
-  return postJson(`/api/agent/tasks/${taskId}/progress`, { status, notes: note })
+  return request('POST', `/api/agent/tasks/${taskId}/progress`, { status, notes: note })
 }
 
 export async function pushTaskArtifacts(
   taskId: string,
   artifacts: Array<{ path: string; kind: ArtifactKind }>,
 ) {
-  return postJson(`/api/agent/tasks/${taskId}/artifacts`, { artifacts })
+  return request('POST', `/api/agent/tasks/${taskId}/artifacts`, { artifacts })
 }
 
 export type ProjectState = {
@@ -54,23 +47,37 @@ export type ProjectState = {
 }
 
 export async function getProjectState(projectId: string): Promise<ProjectState> {
-  return getJson<ProjectState>(`/api/agent/projects/${projectId}/state`)
+  return request<ProjectState>('GET', `/api/agent/projects/${projectId}/state`)
 }
 
 export async function planUpsert(planId: string, jsonPath: string) {
+  if (!jsonPath.endsWith('.json')) throw new Error(`planUpsert: path must end with .json (got ${jsonPath})`)
   const body = JSON.parse(await readFile(jsonPath, 'utf-8'))
-  return postJson(`/api/agent/plans/${planId}/upsert`, body)
+  return request('POST', `/api/agent/plans/${planId}/upsert`, body)
 }
 
 export async function planTaskAdd(planId: string, jsonPath: string) {
+  if (!jsonPath.endsWith('.json')) throw new Error(`planTaskAdd: path must end with .json (got ${jsonPath})`)
   const body = JSON.parse(await readFile(jsonPath, 'utf-8'))
-  return postJson(`/api/agent/plans/${planId}/tasks`, body)
+  return request('POST', `/api/agent/plans/${planId}/tasks`, body)
 }
 
 export async function runAccept(runId: string) {
-  return postJson(`/api/agent/runs/${runId}/accept`, {})
+  return request('POST', `/api/agent/runs/${runId}/accept`, {})
 }
 
 export async function runComplete(runId: string, status: 'completed' | 'failed', errorMessage?: string) {
-  return postJson(`/api/agent/runs/${runId}/complete`, { status, error_message: errorMessage })
+  return request('POST', `/api/agent/runs/${runId}/complete`, { status, error_message: errorMessage })
+}
+
+export async function verifyToken(token: string, platformUrl: string): Promise<unknown> {
+  const res = await fetch(`${platformUrl}/api/agent/auth/verify`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    const truncated = text.length > 200 ? text.slice(0, 200) + '…' : text
+    throw new Error(`Token verification failed: ${res.status} ${truncated}`)
+  }
+  return res.json()
 }

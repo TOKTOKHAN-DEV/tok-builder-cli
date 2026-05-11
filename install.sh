@@ -122,6 +122,7 @@ pnpm install
 
 echo "=== running tokb init ==="
 pnpm exec tokb init "$TOKEN" --platform-url "$PLATFORM_URL"
+unset TOKEN
 
 echo ""
 echo "✓ Bootstrap complete."
