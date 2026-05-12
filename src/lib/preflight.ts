@@ -32,8 +32,13 @@ export function runPreflight(): PreflightResult {
   } else {
     try {
       const orgs = execSync('gh api user/orgs --jq ".[].login"', { encoding: 'utf-8' })
-      const requiredOrg = process.env.PJ_GH_ORG ?? 'toktokhan-dev'
-      if (!orgs.split('\n').map((s) => s.trim()).filter(Boolean).includes(requiredOrg)) {
+      // GitHub org login 은 case-insensitive (실제 응답이 `TOKTOKHAN-DEV` 대문자)
+      const requiredOrg = (process.env.PJ_GH_ORG ?? 'toktokhan-dev').toLowerCase()
+      const userOrgs = orgs
+        .split('\n')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+      if (!userOrgs.includes(requiredOrg)) {
         failures.push(`not a member of ${requiredOrg} GitHub org`)
       }
     } catch {
