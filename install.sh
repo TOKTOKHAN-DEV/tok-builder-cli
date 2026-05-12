@@ -5,11 +5,11 @@ MIN_NODE_MAJOR=24
 
 TOKEN="${1:-}"
 if [[ -z "$TOKEN" ]]; then
-  echo "Usage: curl -fsSL https://raw.githubusercontent.com/toktokhan-dev/tok-builder-cli/main/install.sh | sh -s <token>" >&2
+  echo "사용법: curl -fsSL https://raw.githubusercontent.com/toktokhan-dev/tok-builder-cli/main/install.sh | sh -s <토큰>" >&2
   exit 1
 fi
 if [[ ! "$TOKEN" =~ ^tokb_apt_[A-Za-z0-9_-]+$ ]]; then
-  echo "Invalid token format. Expected tokb_apt_<base64url>" >&2
+  echo "토큰 형식 오류. tokb_apt_<base64url> 필요" >&2
   exit 1
 fi
 
@@ -17,18 +17,18 @@ fi
 # TOKB_PLATFORM_URL 을 inline prefix 로 전달하므로, default 는 운영용 fallback.
 PLATFORM_URL="${TOKB_PLATFORM_URL:-${PJ_PLATFORM_URL:-https://pj-platform-nine.vercel.app}}"
 if [[ ! "$PLATFORM_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
-  echo "Invalid TOKB_PLATFORM_URL — must be https://<host>" >&2
+  echo "TOKB_PLATFORM_URL 형식 오류 — https://<host> 형식이어야 합니다" >&2
   exit 1
 fi
 
-echo "=== preflight ==="
+echo "=== 사전 점검 ==="
 for cmd in node git gh tmux; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "✗ $cmd not found" >&2
+    echo "✗ $cmd 가 설치되어 있지 않습니다" >&2
     case "$cmd" in
       tmux) echo "  brew install tmux  # macOS" >&2 ;;
       gh)   echo "  brew install gh && gh auth login  # macOS" >&2 ;;
-      node) echo "  install Node ${MIN_NODE_MAJOR}+ via nvm/asdf/brew" >&2 ;;
+      node) echo "  Node ${MIN_NODE_MAJOR}+ 를 nvm/asdf/brew 로 설치해주세요" >&2 ;;
     esac
     exit 1
   fi
@@ -37,42 +37,42 @@ done
 
 NODE_VER=$(node -v)
 if [[ ! "$NODE_VER" =~ ^v([0-9]+)\. ]]; then
-  echo "✗ failed to parse Node version: $NODE_VER" >&2
+  echo "✗ Node 버전 파싱 실패: $NODE_VER" >&2
   exit 1
 fi
 NODE_MAJOR="${BASH_REMATCH[1]}"
 if (( NODE_MAJOR < MIN_NODE_MAJOR )); then
-  echo "✗ Node >=${MIN_NODE_MAJOR} required, got ${NODE_VER}" >&2
-  echo "  upgrade via nvm/asdf/brew, then retry" >&2
+  echo "✗ Node ${MIN_NODE_MAJOR}+ 필요, 현재 ${NODE_VER}" >&2
+  echo "  nvm/asdf/brew 로 업그레이드 후 다시 실행해주세요" >&2
   exit 1
 fi
-echo "✓ node version ${NODE_VER} (>=${MIN_NODE_MAJOR})"
+echo "✓ Node 버전 ${NODE_VER} (>=${MIN_NODE_MAJOR})"
 
 # Ensure pnpm is available. Node 16.10+ ships corepack; we activate the project's
 # packageManager via corepack so dev/lockfile work even on a fresh machine.
 if ! command -v pnpm >/dev/null 2>&1; then
-  echo "  pnpm not found — activating via corepack..."
+  echo "  pnpm 없음 — corepack 으로 활성화 중..."
   if command -v corepack >/dev/null 2>&1; then
     corepack enable >/dev/null 2>&1 || true
     corepack prepare pnpm@latest --activate >/dev/null 2>&1 || {
-      echo "✗ corepack failed to install pnpm. Run: npm i -g pnpm" >&2
+      echo "✗ corepack 으로 pnpm 활성화 실패. 다음 명령으로 직접 설치: npm i -g pnpm" >&2
       exit 1
     }
   else
-    echo "✗ pnpm and corepack both unavailable. Run: npm i -g pnpm" >&2
+    echo "✗ pnpm 과 corepack 모두 없음. 다음 명령으로 설치: npm i -g pnpm" >&2
     exit 1
   fi
 fi
 echo "✓ pnpm $(pnpm -v)"
 
 if ! gh auth status >/dev/null 2>&1; then
-  echo "✗ not logged in to GitHub. Run: gh auth login" >&2
+  echo "✗ GitHub 로그인 안 됨. 다음 명령으로 로그인: gh auth login" >&2
   exit 1
 fi
-echo "✓ gh auth"
-echo "✓ preflight OK"
+echo "✓ gh 인증"
+echo "✓ 사전 점검 완료"
 
-echo "=== fetching project metadata from platform ==="
+echo "=== platform 에서 프로젝트 정보 조회 ==="
 META=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "$PLATFORM_URL/api/agent/auth/verify")
 
 # Parse fields via process.argv (no shell interpolation into JS source).
@@ -88,24 +88,24 @@ SLUG=$(parse_field slug)
 
 # Validate platform-supplied values before using them in shell/filesystem.
 if [[ ! "$SLUG" =~ ^[a-zA-Z0-9_-]+$ ]] || [[ ${#SLUG} -gt 64 ]]; then
-  echo "✗ platform returned invalid slug" >&2
+  echo "✗ platform 의 slug 응답이 유효하지 않습니다" >&2
   exit 1
 fi
 if [[ ! "$REPO_URL" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]]; then
-  echo "✗ platform returned invalid repo_url" >&2
+  echo "✗ platform 의 repo_url 응답이 유효하지 않습니다" >&2
   exit 1
 fi
 
-echo "=== cloning $REPO_URL ==="
+echo "=== $REPO_URL 클론 ==="
 gh repo clone -- "$REPO_URL" "$SLUG"
 cd "./$SLUG"
 
 # Configure npm auth for GitHub Packages (private registry for @toktokhan-dev/*).
 # Without this, `npm install` of any @toktokhan-dev/* dep fails with 401.
-echo "=== configuring ~/.npmrc for GitHub Packages ==="
+echo "=== GitHub Packages 용 ~/.npmrc 설정 ==="
 GH_TOKEN_VALUE=$(gh auth token | tr -d '\r\n[:space:]')
 if [[ -z "$GH_TOKEN_VALUE" ]]; then
-  echo "✗ failed to read gh auth token" >&2
+  echo "✗ gh auth token 읽기 실패" >&2
   exit 1
 fi
 NPMRC="$HOME/.npmrc"
@@ -121,16 +121,16 @@ mv "$TMP_NPMRC" "$NPMRC"
 } >> "$NPMRC"
 chmod 600 "$NPMRC"
 unset GH_TOKEN_VALUE
-echo "✓ ~/.npmrc configured (mode 0600)"
+echo "✓ ~/.npmrc 설정 완료 (권한 0600)"
 
-echo "=== installing dependencies (pnpm) ==="
+echo "=== 의존성 설치 (pnpm) ==="
 pnpm install
 
-echo "=== running tokb init ==="
+echo "=== tokb init 실행 ==="
 pnpm exec tokb init "$TOKEN" --platform-url "$PLATFORM_URL"
 unset TOKEN
 
 echo ""
-echo "✓ Bootstrap complete."
-echo "Next: open Claude Code in this directory:"
+echo "✓ 부트스트랩 완료."
+echo "다음 단계: 이 디렉토리에서 Claude Code 열기"
 echo "  cd $SLUG && claude"
