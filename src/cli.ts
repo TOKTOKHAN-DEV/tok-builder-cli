@@ -15,7 +15,7 @@ const pkg = require('../package.json') as { version: string }
 
 process.on('unhandledRejection', (err) => {
   if (err instanceof ZodError) {
-    console.error('Invalid input:')
+    console.error('입력 검증 실패:')
     for (const issue of err.issues) {
       console.error(`  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
     }
@@ -30,7 +30,7 @@ process.on('unhandledRejection', (err) => {
 const program = new Command()
 program
   .name('tokb')
-  .description('tok-builder CLI for outsourcing build orchestration (formerly `pj`)')
+  .description('외주 빌드 오케스트레이션용 tok-builder CLI (구 `pj`)')
   .version(pkg.version)
 
 for (const register of [

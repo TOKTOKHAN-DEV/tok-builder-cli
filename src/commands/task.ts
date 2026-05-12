@@ -9,36 +9,36 @@ import {
 } from '../lib/api.js'
 
 export function taskCommand(program: Command): void {
-  const task = program.command('task').description('Per-task progress + artifact reporting')
+  const task = program.command('task').description('task 별 진행 상황 + 산출물 보고')
 
   task
     .command('progress')
-    .description('Report task status')
+    .description('task 상태 보고')
     .addArgument(new Argument('<id>', 'Task UUID'))
-    .addArgument(new Argument('<status>', 'Task status').choices([...TASK_STATUSES]))
-    .option('--note <note>', 'Optional note attached to the progress event')
+    .addArgument(new Argument('<status>', 'task 상태').choices([...TASK_STATUSES]))
+    .option('--note <note>', '진행 이벤트에 첨부할 메모 (선택)')
     .action(async (id: string, status: TaskStatus, opts: { note?: string }) => {
       await pushTaskProgress(id, status, opts.note)
-      console.log(`task ${id} → ${status}`)
+      console.log(`✓ task ${id} → ${status}`)
     })
 
   task
     .command('done <id>')
-    .description('Shortcut for `tokb task progress <id> done`')
+    .description('`tokb task progress <id> done` 단축형')
     .action(async (id: string) => {
       await pushTaskProgress(id, 'done')
-      console.log(`task ${id} → done`)
+      console.log(`✓ task ${id} → done`)
     })
 
-  const artifact = task.command('artifact').description('Manage task artifacts')
+  const artifact = task.command('artifact').description('task 산출물 관리')
   artifact
     .command('add <id> <path>')
-    .description('Attach an artifact path to a task')
+    .description('task 에 산출물 path 첨부')
     .addOption(
-      new Option('--kind <kind>', 'Artifact kind').choices([...ARTIFACT_KINDS]).default('other'),
+      new Option('--kind <kind>', '산출물 종류').choices([...ARTIFACT_KINDS]).default('other'),
     )
     .action(async (id: string, path: string, opts: { kind: ArtifactKind }) => {
       await pushTaskArtifacts(id, [{ path, kind: opts.kind }])
-      console.log(`artifact added to task ${id}: ${path}`)
+      console.log(`✓ task ${id} 산출물 추가: ${path}`)
     })
 }

@@ -16,19 +16,19 @@ export function initCommand(program: Command): void {
   program
     .command('init')
     .argument('<token>', 'tokb_apt_* token')
-    .description('Verify token + persist project metadata to .tokb/config.json')
-    .option('--platform-url <url>', 'platform base URL', 'https://pj-platform.vercel.app')
+    .description('토큰 검증 + 프로젝트 정보를 .tokb/config.json 에 저장')
+    .option('--platform-url <url>', 'platform 기본 URL', 'https://pj-platform.vercel.app')
     .action(async (token: string, opts: { platformUrl: string }) => {
-      console.log('=== preflight ===')
+      console.log('=== 사전 점검 ===')
       const pf = runPreflight()
       if (!pf.ok) {
-        console.error('Preflight failed:')
+        console.error('사전 점검 실패:')
         for (const f of pf.failures) console.error(`  - ${f}`)
         process.exit(1)
       }
-      console.log('preflight OK')
+      console.log('사전 점검 완료')
 
-      console.log('=== verifying token ===')
+      console.log('=== 토큰 검증 ===')
       let verified: VerifyResponse
       try {
         verified = (await verifyToken(token, opts.platformUrl)) as VerifyResponse
@@ -47,7 +47,7 @@ export function initCommand(program: Command): void {
         platform_base_url: opts.platformUrl,
       })
 
-      console.log(`✓ token verified, config written for project ${verified.slug ?? verified.project_id}`)
-      console.log('\nNext: open Claude Code to start:  claude')
+      console.log(`✓ 토큰 검증 완료, 프로젝트 ${verified.slug ?? verified.project_id} 설정 저장됨`)
+      console.log('\n다음 단계: Claude Code 실행  claude')
     })
 }
