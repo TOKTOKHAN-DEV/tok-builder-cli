@@ -75,11 +75,31 @@ echo "✓ 사전 점검 완료"
 echo "=== platform 에서 프로젝트 정보 조회 ==="
 META=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "$PLATFORM_URL/api/agent/auth/verify")
 
+# verify 응답이 JSON 인지 빠르게 확인 (HTML error page / 빈 응답 등 감지).
+# 사용자에게 정확한 진단 메시지 노출 — 후속 node parse 실패 시 stack trace 만
+# 보여서 원인 파악 어려운 사고 예방.
+if [[ -z "$META" ]]; then
+  echo "✗ platform verify 응답이 비어 있음. PLATFORM_URL 또는 토큰을 확인하세요." >&2
+  echo "    PLATFORM_URL=$PLATFORM_URL" >&2
+  exit 1
+fi
+if [[ "$META" != \{* ]]; then
+  echo "✗ platform verify 응답이 JSON 형식이 아님 (HTML 오류 페이지 가능):" >&2
+  echo "$META" | head -c 200 >&2
+  echo "" >&2
+  exit 1
+fi
+
 # Parse fields via process.argv (no shell interpolation into JS source).
 parse_field() {
   TOKB_META="$META" node -e '
-    const o = JSON.parse(process.env.TOKB_META);
-    process.stdout.write(String(o[process.argv[1]] ?? ""));
+    try {
+      const o = JSON.parse(process.env.TOKB_META);
+      process.stdout.write(String(o[process.argv[1]] ?? ""));
+    } catch (e) {
+      process.stderr.write("✗ platform 응답 JSON 파싱 실패: " + e.message + "\n");
+      process.exit(1);
+    }
   ' "$1"
 }
 
