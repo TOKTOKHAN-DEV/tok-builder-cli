@@ -13,7 +13,9 @@ if [[ ! "$TOKEN" =~ ^tokb_apt_[A-Za-z0-9_-]+$ ]]; then
   exit 1
 fi
 
-PLATFORM_URL="${TOKB_PLATFORM_URL:-${PJ_PLATFORM_URL:-https://pj-platform.vercel.app}}"
+# 운영 main 도메인. develop / 다른 환경에서 빌드 시작 시 platform 이 응답에
+# TOKB_PLATFORM_URL 을 inline prefix 로 전달하므로, default 는 운영용 fallback.
+PLATFORM_URL="${TOKB_PLATFORM_URL:-${PJ_PLATFORM_URL:-https://pj-platform-nine.vercel.app}}"
 if [[ ! "$PLATFORM_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
   echo "Invalid TOKB_PLATFORM_URL — must be https://<host>" >&2
   exit 1
@@ -30,6 +32,7 @@ for cmd in node git gh tmux; do
     esac
     exit 1
   fi
+  echo "✓ $cmd"
 done
 
 NODE_VER=$(node -v)
@@ -43,6 +46,7 @@ if (( NODE_MAJOR < MIN_NODE_MAJOR )); then
   echo "  upgrade via nvm/asdf/brew, then retry" >&2
   exit 1
 fi
+echo "✓ node version ${NODE_VER} (>=${MIN_NODE_MAJOR})"
 
 # Ensure pnpm is available. Node 16.10+ ships corepack; we activate the project's
 # packageManager via corepack so dev/lockfile work even on a fresh machine.
@@ -59,12 +63,14 @@ if ! command -v pnpm >/dev/null 2>&1; then
     exit 1
   fi
 fi
+echo "✓ pnpm $(pnpm -v)"
 
 if ! gh auth status >/dev/null 2>&1; then
   echo "✗ not logged in to GitHub. Run: gh auth login" >&2
   exit 1
 fi
-echo "✓ preflight OK (Node ${NODE_VER}, pnpm $(pnpm -v))"
+echo "✓ gh auth"
+echo "✓ preflight OK"
 
 echo "=== fetching project metadata from platform ==="
 META=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "$PLATFORM_URL/api/agent/auth/verify")
