@@ -21,7 +21,7 @@ export function generateGlobalsCss(tokens: DesignTokens): string {
   const themeMotionVars = buildThemeMotionVars(tokens);
   const componentStyles = buildComponentCss(tokens);
 
-  return `/* Auto-generated from design.md — do not edit directly.
+  const result = `/* Auto-generated from design.md — do not edit directly.
    Source of truth: design.md YAML tokens.
    To update: edit design.md → re-run export. */
 @import "tailwindcss";
@@ -49,18 +49,36 @@ ${rootMotionVars}
   }
 }
 ${componentStyles}`;
+
+  // debug aid: 미해결 ref 가 남아있으면 warn (테스트가 catch 함)
+  const unresolved = result.match(/\{[a-zA-Z][^}]*\}/g);
+  if (unresolved && unresolved.length > 0) {
+    console.warn(
+      `[generateGlobalsCss] unresolved refs: ${unresolved.slice(0, 5).join(', ')}` +
+        (unresolved.length > 5 ? ` ... (${unresolved.length} total)` : ''),
+    );
+  }
+  return result;
 }
 
-const REF_RE = /^\{colors\.(.+)\}$/;
+const COLORS_REF_RE = /^\{colors\.(.+)\}$/;
 
 function resolveSemanticHex(
   raw: string,
   colors: Record<string, unknown>,
 ): string | null {
-  const match = REF_RE.exec(raw);
-  if (!match) return raw.startsWith('#') ? raw : null;
+  if (raw.startsWith('#')) return raw;
+  const match = COLORS_REF_RE.exec(raw);
+  if (!match) {
+    // ref 형식이지만 colors 이외 prefix — resolveRef 로 재귀 시도 (null 반환)
+    return null;
+  }
+  // getPath 로 1레벨 resolve 후, 결과가 또 ref 이면 재귀 (nested ref 대응)
   const resolved = getPath(colors, match[1]);
-  return typeof resolved === 'string' ? resolved : null;
+  if (typeof resolved === 'string') {
+    return resolveSemanticHex(resolved, colors);
+  }
+  return null;
 }
 
 function hexToOklch(hex: string): string {

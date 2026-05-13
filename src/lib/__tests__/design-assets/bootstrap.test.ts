@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { bootstrapDesignAssets } from '../../design-assets';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const validDesignMd = `---
 colors:
@@ -187,5 +190,38 @@ describe('bootstrapDesignAssets', () => {
     expect(() => bootstrapDesignAssets({ repoRoot: tmpRepo, skipCommit: true })).toThrow(
       /src\/assets\/icons\//,
     );
+  });
+
+  it('real design.md (사용자 build repo) — globals.css 에 unresolved ref 없음 + 기본 구조 통과', () => {
+    // 사용자 실제 build repo 의 design.md fixture
+    const realDesignMd = readFileSync(
+      join(__dirname, 'real-design-md.fixture.md'),
+      'utf-8',
+    );
+    writeFileSync(join(tmpRepo, '.tokb/design.md'), realDesignMd);
+
+    // real fixture 는 regular_rounded 아이콘 스타일을 사용하므로 해당 폴더도 시드
+    const iconsRoot = join(tmpRepo, 'src/assets/icons');
+    const rrDir = join(iconsRoot, 'regular_rounded');
+    mkdirSync(rrDir, { recursive: true });
+    writeFileSync(join(rrDir, 'fi-bell.svg'), '<svg/>');
+    writeFileSync(join(rrDir, 'fi-home.svg'), '<svg/>');
+
+    const result = bootstrapDesignAssets({ repoRoot: tmpRepo, skipCommit: true });
+
+    // globals.css 생성 확인
+    const css = readFileSync(result.globalsCssPath, 'utf-8');
+
+    // 핵심 invariant: 모든 ref 완전 resolve — raw {x.y.z} 가 남아있으면 fail
+    expect(css).not.toMatch(/\{[a-zA-Z][^}]*\}/);
+
+    // Tailwind v4 기본 구조 통과
+    expect(css).toContain('@import "tailwindcss";');
+    expect(css).toContain('@theme inline {');
+
+    // CSS brace 매칭 검증
+    const openBraces = (css.match(/\{/g) ?? []).length;
+    const closeBraces = (css.match(/\}/g) ?? []).length;
+    expect(openBraces).toBe(closeBraces);
   });
 });
