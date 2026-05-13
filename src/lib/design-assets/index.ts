@@ -5,8 +5,8 @@ import { join, dirname } from 'node:path';
 import { generateGlobalsCss } from './generate-globals-css';
 import { parseDesignMd } from './parse-design-md';
 import { pruneDesignIcons } from './prune-design-icons';
-import type { IconStyle } from './prune-design-icons';
 import { safeParseDesignTokens } from './schema';
+import type { IconStyle } from './schema';
 
 export interface BootstrapDesignAssetsArgs {
   /** build repo 루트 (=`tokb init` 실행 위치) */
@@ -57,7 +57,7 @@ export function bootstrapDesignAssets(
   writeFileSync(globalsCssPath, css, 'utf-8');
 
   // 4. 아이콘 정리 (template 이 6 style 다 들고 있고, 1 style 만 유지)
-  const iconStyle = validated.data.icons.style as IconStyle;
+  const iconStyle = validated.data.icons.style;
   const pruneResult = pruneDesignIcons({
     keepStyle: iconStyle,
     targetRepoRoot: repoRoot,

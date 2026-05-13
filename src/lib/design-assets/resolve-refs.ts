@@ -18,7 +18,7 @@ export function resolveAllRefs<T extends Record<string, unknown>>(
   ) as T;
 }
 
-function getPath(obj: unknown, path: string): unknown {
+export function getPath(obj: unknown, path: string): unknown {
   const parts = path.split('.');
   let node = obj;
   for (const part of parts) {
