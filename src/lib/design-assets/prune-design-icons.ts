@@ -1,22 +1,12 @@
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-export type IconStyle =
-  | 'regular_straight'
-  | 'regular_rounded'
-  | 'bold_straight'
-  | 'bold_rounded'
-  | 'solid_straight'
-  | 'solid_rounded';
+import { IconStyleSchema } from './schema';
+import type { IconStyle } from './schema';
 
-const ALL_STYLES: IconStyle[] = [
-  'regular_straight',
-  'regular_rounded',
-  'bold_straight',
-  'bold_rounded',
-  'solid_straight',
-  'solid_rounded',
-];
+export type { IconStyle };
+
+const ALL_STYLES: readonly IconStyle[] = IconStyleSchema.options;
 
 export interface PruneDesignIconsArgs {
   /** design.md 의 icons.style 결정 — 이 폴더만 남김 */

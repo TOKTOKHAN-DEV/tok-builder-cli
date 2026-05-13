@@ -2,7 +2,7 @@ import { converter } from 'culori';
 
 import type { DesignTokens } from './schema';
 
-import { resolveAllRefs } from './resolve-refs';
+import { resolveAllRefs, getPath } from './resolve-refs';
 
 const toOklch = converter('oklch');
 
@@ -59,14 +59,9 @@ function resolveSemanticHex(
   colors: Record<string, unknown>,
 ): string | null {
   const match = REF_RE.exec(raw);
-  if (!match) return raw.startsWith("#") ? raw : null;
-  const parts = match[1].split('.');
-  let node: unknown = colors;
-  for (const part of parts) {
-    if (node === null || typeof node !== 'object') return null;
-    node = (node as Record<string, unknown>)[part];
-  }
-  return typeof node === 'string' ? node : null;
+  if (!match) return raw.startsWith('#') ? raw : null;
+  const resolved = getPath(colors, match[1]);
+  return typeof resolved === 'string' ? resolved : null;
 }
 
 function hexToOklch(hex: string): string {
