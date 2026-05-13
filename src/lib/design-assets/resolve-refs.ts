@@ -3,7 +3,9 @@ const REF_RE = /\{([^}]+)\}/g;
 export function resolveRef(value: string, tokens: Record<string, unknown>): string {
   return value.replace(REF_RE, (_, path: string) => {
     const resolved = getPath(tokens, path);
-    return typeof resolved === 'string' ? resolved : `{${path}}`;
+    if (resolved === null || resolved === undefined) return `{${path}}`;
+    if (typeof resolved === 'string' || typeof resolved === 'number') return String(resolved);
+    return `{${path}}`;
   });
 }
 

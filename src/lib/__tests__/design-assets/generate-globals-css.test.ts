@@ -38,7 +38,7 @@ const minimalTokens = {
   spacing: { breakpoints: { sm: '640px', md: '768px', lg: '1024px', xl: '1280px', '2xl': '1536px' } },
   icons: { style: 'regular_straight' as const, source: 'flaticon-uicons' as const, rationale: 'pilot default' },
   components: {
-    'button-primary': { background: '{colors.primary.500}' },
+    'button-primary': { background: '{colors.primary.500}', 'font-weight': '{typography.weight.semibold}' },
     'button-secondary': { background: '{colors.gray.100}' },
     input: { border: '{colors.gray.200}' },
     card: { background: '{colors.semantic.card}' },
@@ -70,5 +70,12 @@ describe('generateGlobalsCss', () => {
     const css = generateGlobalsCss(minimalTokens);
     expect(css).toContain('.token-button-primary {');
     expect(css).toContain('.token-card {');
+  });
+
+  it('component CSS 의 number 토큰 reference resolve (typography.weight)', () => {
+    const css = generateGlobalsCss(minimalTokens);
+    // button-primary 의 font-weight 가 typography.weight.semibold (600) 으로 resolve 되어야 함
+    // raw '{typography.weight.semibold}' 가 globals.css 에 남아있으면 안 됨
+    expect(css).not.toMatch(/\{typography\.weight\.\w+\}/);
   });
 });
