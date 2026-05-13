@@ -1,10 +1,12 @@
 const REF_RE = /\{([^}]+)\}/g;
 
-export function resolveRef(value: string, tokens: Record<string, unknown>): string {
+export function resolveRef(value: string, tokens: Record<string, unknown>, depth = 0): string {
+  if (depth > 10) return value; // 무한 루프 방지 (circular ref 등)
   return value.replace(REF_RE, (_, path: string) => {
     const resolved = getPath(tokens, path);
     if (resolved === null || resolved === undefined) return `{${path}}`;
-    if (typeof resolved === 'string' || typeof resolved === 'number') return String(resolved);
+    if (typeof resolved === 'string') return resolveRef(resolved, tokens, depth + 1);
+    if (typeof resolved === 'number') return String(resolved);
     return `{${path}}`;
   });
 }
