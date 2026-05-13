@@ -49,6 +49,27 @@ above writes this for you automatically; for manual installs, run
 | `tokb phase status` | Print current phase + done/total task count. |
 | `tokb resume [--auto-push]` | Stop-hook context (plan status, in-progress tasks, git status). `--auto-push` is reserved for v1.x. |
 
+## tokb init
+
+토큰 검증 + 프로젝트 정보 저장 + design assets bootstrap.
+
+### Bootstrap 단계
+
+`.tokb/design.md` 가 platform 에서 inject 되어 있으면 (시범 빌드 흐름) `tokb init` 마지막에 자동 실행:
+
+1. `.tokb/design.md` parse + zod schema 검증 (실패 시 platform 에서 design 재생성 안내)
+2. `app/globals.css` 생성 (Tailwind v4 + shadcn-v4 호환, design tokens 기반)
+3. `src/assets/icons/{style}/` 만 유지하고 나머지 5 style 폴더 정리 (template fork 가 시작점에 6 style 다 들고 옴)
+4. `git commit -m "chore: bootstrap design assets from .tokb/design.md"`
+
+`.tokb/design.md` 가 없으면 (예: 로컬 dev / re-init) skip 후 안내 메시지만 출력.
+
+### 사용
+
+```bash
+tokb init tokb_apt_<your_token>
+```
+
 ## Configuration
 
 Per-project state lives in `.tokb/config.json` (chmod `0600`) with these fields:
