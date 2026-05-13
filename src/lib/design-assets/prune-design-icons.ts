@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { IconStyleSchema } from './schema';
-import type { IconStyle } from './schema';
+import { IconStyleSchema } from './schema.js';
+import type { IconStyle } from './schema.js';
 
 export type { IconStyle };
 

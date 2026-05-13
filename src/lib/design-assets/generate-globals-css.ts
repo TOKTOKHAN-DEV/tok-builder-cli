@@ -1,8 +1,8 @@
 import { converter } from 'culori';
 
-import type { DesignTokens } from './schema';
+import type { DesignTokens } from './schema.js';
 
-import { resolveAllRefs, getPath } from './resolve-refs';
+import { resolveAllRefs, getPath } from './resolve-refs.js';
 
 const toOklch = converter('oklch');
 

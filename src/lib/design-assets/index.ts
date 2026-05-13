@@ -2,11 +2,11 @@ import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
-import { generateGlobalsCss } from './generate-globals-css';
-import { parseDesignMd } from './parse-design-md';
-import { pruneDesignIcons } from './prune-design-icons';
-import { safeParseDesignTokens } from './schema';
-import type { IconStyle } from './schema';
+import { generateGlobalsCss } from './generate-globals-css.js';
+import { parseDesignMd } from './parse-design-md.js';
+import { pruneDesignIcons } from './prune-design-icons.js';
+import { safeParseDesignTokens } from './schema.js';
+import type { IconStyle } from './schema.js';
 
 export interface BootstrapDesignAssetsArgs {
   /** build repo 루트 (=`tokb init` 실행 위치) */
