@@ -16,9 +16,8 @@ const toOklch = converter('oklch');
  * semantic 값이 {colors.x.y} 참조면 실제 hex로 치환 후 OKLCH 변환.
  */
 export function generateGlobalsCss(tokens: DesignTokens): string {
-  const rootSemanticVars = buildSemanticCssVars(tokens);
+  const { rootVars: rootSemanticVars, themeVars: themeSemanticVars } = buildSemanticVars(tokens);
   const rootMotionVars = buildMotionCssVars(tokens);
-  const themeSemanticVars = buildThemeInlineVars(tokens);
   const themeMotionVars = buildThemeMotionVars(tokens);
   const componentStyles = buildComponentCss(tokens);
 
@@ -76,26 +75,19 @@ function hexToOklch(hex: string): string {
   return `oklch(${l} ${c} ${h})`;
 }
 
-function buildSemanticCssVars(tokens: DesignTokens): string {
+function buildSemanticVars(tokens: DesignTokens): { rootVars: string; themeVars: string } {
   const colors = tokens.colors as Record<string, unknown>;
   const semantic = colors.semantic as Record<string, string>;
 
-  return Object.entries(semantic)
-    .map(([key, rawVal]) => {
-      const hex = resolveSemanticHex(rawVal, colors);
-      const cssVal = hex ? hexToOklch(hex) : rawVal;
-      return `  --${key}: ${cssVal};`;
-    })
-    .join('\n');
-}
-
-function buildThemeInlineVars(tokens: DesignTokens): string {
-  const colors = tokens.colors as Record<string, unknown>;
-  const semantic = colors.semantic as Record<string, string>;
-
-  return Object.keys(semantic)
-    .map((key) => `  --color-${key}: var(--${key});`)
-    .join('\n');
+  const rootLines: string[] = [];
+  const themeLines: string[] = [];
+  for (const [key, rawVal] of Object.entries(semantic)) {
+    const hex = resolveSemanticHex(rawVal, colors);
+    const cssVal = hex ? hexToOklch(hex) : rawVal;
+    rootLines.push(`  --${key}: ${cssVal};`);
+    themeLines.push(`  --color-${key}: var(--${key});`);
+  }
+  return { rootVars: rootLines.join('\n'), themeVars: themeLines.join('\n') };
 }
 
 function buildMotionCssVars(tokens: DesignTokens): string {
