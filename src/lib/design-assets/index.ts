@@ -20,6 +20,7 @@ export interface BootstrapDesignAssetsResult {
   iconsDir: string;
   iconCount: number;
   committed: boolean;
+  pushed: boolean;
 }
 
 export function bootstrapDesignAssets(
@@ -63,8 +64,9 @@ export function bootstrapDesignAssets(
     targetRepoRoot: repoRoot,
   });
 
-  // 5. git commit
+  // 5. git commit + push
   let committed = false;
+  let pushed = false;
   if (!skipCommit) {
     try {
       execSync('git add app/globals.css src/assets/icons', {
@@ -81,6 +83,22 @@ export function bootstrapDesignAssets(
       // commit 실패는 throw 안 함 — 파일은 이미 생성됨. 사용자 수동 commit 가능.
       console.warn(`[bootstrap-design-assets] git commit 건너뜀: ${msg}`);
     }
+
+    // commit 성공한 경우에만 push 시도
+    if (committed) {
+      try {
+        execSync('git push', {
+          cwd: repoRoot,
+          stdio: 'pipe',
+        });
+        pushed = true;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(
+          `[bootstrap-design-assets] git push 건너뜀 (commit 은 local 에 있음): ${msg}`,
+        );
+      }
+    }
   }
 
   return {
@@ -88,6 +106,7 @@ export function bootstrapDesignAssets(
     iconsDir: pruneResult.keptDir,
     iconCount: pruneResult.keptCount,
     committed,
+    pushed,
   };
 }
 

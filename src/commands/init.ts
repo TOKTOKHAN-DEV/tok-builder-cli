@@ -69,6 +69,7 @@ export function initCommand(program: Command): void {
         console.log(`✓ app/globals.css 생성`)
         console.log(`✓ src/assets/icons/ : ${r.iconCount}개 SVG (style 외 5 폴더 정리)`)
         console.log(`✓ git commit: ${r.committed ? '완료' : '건너뜀 (수동 commit 필요)'}`)
+        console.log(`✓ git push:   ${r.pushed ? '완료' : r.committed ? '건너뜀 (수동 push 필요)' : '건너뜀 (commit 없음)'}`)
       } catch (err) {
         console.error(err instanceof Error ? err.message : String(err))
         process.exit(1)

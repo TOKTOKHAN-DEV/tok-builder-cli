@@ -162,6 +162,9 @@ describe('bootstrapDesignAssets', () => {
 
     const css = readFileSync(result.globalsCssPath, 'utf-8');
     expect(css).toContain('@import "tailwindcss";');
+
+    expect(result.committed).toBe(false); // skipCommit: true 이므로
+    expect(result.pushed).toBe(false);    // commit 안 됐으니 push 도 안 됨
   });
 
   it('design.md 없으면 throw', () => {
