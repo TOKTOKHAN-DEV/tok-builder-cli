@@ -105,6 +105,7 @@ parse_field() {
 
 REPO_URL=$(parse_field repo_url)
 SLUG=$(parse_field slug)
+PROJECT_ID=$(parse_field project_id)
 
 # Validate platform-supplied values before using them in shell/filesystem.
 if [[ ! "$SLUG" =~ ^[a-zA-Z0-9_-]+$ ]] || [[ ${#SLUG} -gt 64 ]]; then
@@ -145,6 +146,49 @@ echo "✓ ~/.npmrc 설정 완료 (권한 0600)"
 
 echo "=== 의존성 설치 (pnpm) ==="
 pnpm install
+
+echo "=== Supabase 환경변수 주입 (.env.local) ==="
+# build repo 의 로컬 .env.local 에 Supabase keys 기록.
+# GitHub commit X (.gitignore 의 .env*.local 패턴으로 강제 차단).
+ENV_RESPONSE=$(curl -fsSL \
+  -H "Authorization: Bearer $TOKEN" \
+  "${PLATFORM_URL}/api/agent/projects/${PROJECT_ID}/env" 2>&1) || true
+
+if [[ -z "$ENV_RESPONSE" ]] || [[ "$ENV_RESPONSE" != \{* ]]; then
+  echo "⚠  .env.local fetch 실패 — omc 가 supabase 명령 실행 시 막힐 수 있음 (빌드는 계속)" >&2
+  echo "   응답: $(echo "$ENV_RESPONSE" | head -c 100)" >&2
+else
+  # Node 로 JSON parsing — jq 의존성 없이 기존 패턴 유지
+  parse_env_field() {
+    TOKB_ENV="$ENV_RESPONSE" node -e '
+      try {
+        const o = JSON.parse(process.env.TOKB_ENV);
+        process.stdout.write(String(o[process.argv[1]] ?? ""));
+      } catch (e) {
+        process.stderr.write("env JSON parse 실패: " + e.message + "\n");
+        process.exit(1);
+      }
+    ' "$1"
+  }
+  SUPABASE_URL=$(parse_env_field supabase_url)
+  ANON_KEY=$(parse_env_field supabase_anon_key)
+  SERVICE_ROLE_KEY=$(parse_env_field supabase_service_role_key)
+
+  if [[ -z "$SUPABASE_URL" ]] || [[ -z "$ANON_KEY" ]] || [[ -z "$SERVICE_ROLE_KEY" ]]; then
+    echo "⚠  .env.local: Supabase keys 미프로비저닝 — platform 에서 설정 후 재실행" >&2
+  else
+    # 현재 디렉터리 = clone 후 cd 된 build repo root
+    cat > .env.local <<ENVEOF
+NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}
+SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
+ENVEOF
+    chmod 600 .env.local
+    unset SUPABASE_URL ANON_KEY SERVICE_ROLE_KEY
+    echo "✓ .env.local 작성 완료 (로컬 only, 권한 0600)"
+  fi
+fi
+unset ENV_RESPONSE
 
 echo "=== tokb init 실행 ==="
 pnpm exec tokb init "$TOKEN" --platform-url "$PLATFORM_URL"

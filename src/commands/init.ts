@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { existsSync } from 'node:fs'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { bootstrapDesignAssets } from '../lib/design-assets/index.js'
@@ -14,6 +15,12 @@ type VerifyResponse = {
   repo_url?: string
   vercel_url?: string
   supabase_url?: string
+}
+
+type EnvResponse = {
+  supabase_url: string
+  supabase_anon_key: string
+  supabase_service_role_key: string
 }
 
 export function initCommand(program: Command): void {
@@ -52,6 +59,35 @@ export function initCommand(program: Command): void {
       })
 
       console.log(`✓ 토큰 검증 완료, 프로젝트 ${verified.slug ?? verified.project_id} 설정 저장됨`)
+
+      // === .env.local: Supabase keys 로컬 주입 ===
+      // build repo 의 로컬 working tree 에만 write. GitHub commit X.
+      // .gitignore 의 .env*.local 패턴으로 실수 add 도 차단됨.
+      if (verified.project_id) {
+        try {
+          const envRes = await fetch(
+            `${opts.platformUrl}/api/agent/projects/${verified.project_id}/env`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          )
+          if (envRes.status === 409) {
+            console.log('⚠  .env.local: Supabase keys 미프로비저닝 — platform 에서 설정 후 재실행')
+          } else if (!envRes.ok) {
+            console.log(`⚠  .env.local fetch 실패 (${envRes.status}) — omc 가 supabase 명령 실행 시 막힐 수 있음`)
+          } else {
+            const env = (await envRes.json()) as EnvResponse
+            const envContent = [
+              `NEXT_PUBLIC_SUPABASE_URL=${env.supabase_url}`,
+              `NEXT_PUBLIC_SUPABASE_ANON_KEY=${env.supabase_anon_key}`,
+              `SUPABASE_SERVICE_ROLE_KEY=${env.supabase_service_role_key}`,
+              '',
+            ].join('\n')
+            await writeFile(join(process.cwd(), '.env.local'), envContent, { mode: 0o600 })
+            console.log('✓ .env.local 작성 완료 (로컬 only, 권한 0600)')
+          }
+        } catch (err) {
+          console.log(`⚠  .env.local fetch 실패 — ${err instanceof Error ? err.message : String(err)}`)
+        }
+      }
 
       // === design assets bootstrap ===
       const repoRoot = process.cwd()
