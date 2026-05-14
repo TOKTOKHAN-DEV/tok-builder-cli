@@ -178,11 +178,11 @@ else
     echo "⚠  .env.local: Supabase keys 미프로비저닝 — platform 에서 설정 후 재실행" >&2
   else
     # 현재 디렉터리 = clone 후 cd 된 build repo root
-    cat > .env.local <<ENVEOF
-NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
-NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}
-SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
-ENVEOF
+    {
+      printf '%s\n' "NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}"
+      printf '%s\n' "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}"
+      printf '%s\n' "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+    } > .env.local
     chmod 600 .env.local
     unset SUPABASE_URL ANON_KEY SERVICE_ROLE_KEY
     echo "✓ .env.local 작성 완료 (로컬 only, 권한 0600)"
