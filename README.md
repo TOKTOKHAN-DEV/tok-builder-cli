@@ -49,6 +49,19 @@ above writes this for you automatically; for manual installs, run
 | `tokb phase status` | Print current phase + done/total task count. |
 | `tokb resume [--auto-push]` | Stop-hook context (plan status, in-progress tasks, git status). `--auto-push` is reserved for v1.x. |
 
+## tokb group — group 단위 진행 관리
+
+group_key (예: design-spec phase의 `data-model`, core-impl의 `auth-login`) 단위로 task 묶음 관리.
+
+```bash
+tokb group status <groupKey>      # group의 task 진행 상태 출력
+tokb group complete <groupKey>    # 모든 task done 검증 후 PR 생성 trigger
+tokb group complete <groupKey> --dry-run  # 검증만, PR 생성 skip
+```
+
+CLAUDE.md (template)의 group 마지막 task done 흐름에서 omc가 자율 호출.
+v1은 검증만 수행, v1.x에서 자동 PR 생성 흐름 추가 예정.
+
 ## tokb init
 
 토큰 검증 + 프로젝트 정보 저장 + design assets bootstrap.
