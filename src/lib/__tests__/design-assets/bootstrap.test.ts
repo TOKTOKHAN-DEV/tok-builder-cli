@@ -192,12 +192,11 @@ describe('bootstrapDesignAssets', () => {
     );
   });
 
-  it('real design.md (사용자 build repo) — globals.css 에 unresolved ref 없음 + 기본 구조 통과', () => {
-    // 사용자 실제 build repo 의 design.md fixture
-    const realDesignMd = readFileSync(
-      join(__dirname, 'real-design-md.fixture.md'),
-      'utf-8',
-    );
+  // 사용자 실제 build repo 의 design.md fixture — 도메인 정보 포함이라 git 비커밋 (의도).
+  // 로컬 머신에선 실행, CI 에선 skip.
+  const realFixturePath = join(__dirname, 'real-design-md.fixture.md');
+  it.skipIf(!existsSync(realFixturePath))('real design.md (사용자 build repo) — globals.css 에 unresolved ref 없음 + 기본 구조 통과', () => {
+    const realDesignMd = readFileSync(realFixturePath, 'utf-8');
     writeFileSync(join(tmpRepo, '.tokb/design.md'), realDesignMd);
 
     // real fixture 는 regular_rounded 아이콘 스타일을 사용하므로 해당 폴더도 시드
