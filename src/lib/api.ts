@@ -43,7 +43,15 @@ export async function pushTaskArtifacts(
 export type ProjectState = {
   plan: { id: string; status: string; current_phase_id: string | null } | null
   run: { id: string; status: string } | null
-  tasks: Array<{ id: string; phase_slug: string; status: TaskStatus; title: string }>
+  tasks: Array<{
+    id: string
+    phase_slug: string
+    status: TaskStatus
+    title: string
+    group_key: string | null
+    group_type: string | null
+    domain: string | null
+  }>
 }
 
 export async function getProjectState(projectId: string): Promise<ProjectState> {
