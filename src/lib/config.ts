@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, access } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 
@@ -9,7 +9,7 @@ const httpsUrl = z
   .refine((u) => new URL(u).protocol === 'https:', { message: 'must be https://' })
 
 const ConfigSchema = z.object({
-  push_token: z.string().regex(/^tokb_apt_/, 'must start with tokb_apt_'),
+  push_token: z.string().regex(/^tokb_apt_/, 'must start with tokb_apt_').optional(),
   project_id: z.uuid().optional(),
   plan_id: z.uuid().optional(),
   repo_url: httpsUrl.optional(),
@@ -44,8 +44,32 @@ export async function writeConfig(cfg: Partial<Config>, cwd: string = process.cw
 }
 
 export async function requireConfig(cwd: string = process.cwd()): Promise<Config> {
+  // .env.local 자동 로드 (있을 때만). dotenv 는 동적 import 로 늦게 부른다.
+  const envPath = join(cwd, '.env.local')
+  try {
+    await access(envPath)
+    const dotenv = await import('dotenv')
+    dotenv.config({ path: envPath, override: false })
+  } catch {
+    // .env.local 없으면 skip
+  }
+
   const cfg = await readConfig(cwd)
   if (!cfg) throw new Error('No .tokb/config.json. Run `tokb login <token>` first.')
+
+  // env var 우선 — 있으면 cfg.push_token 을 override
+  const envToken = process.env.TOKB_PUSH_TOKEN
+  if (envToken) {
+    cfg.push_token = envToken
+  }
+
+  if (!cfg.push_token) {
+    throw new Error(
+      'TOKB_PUSH_TOKEN 이 .env.local 에도 없고 .tokb/config.json 에도 없습니다. ' +
+        'platform UI 에서 새 빌드 시작 후 받은 토큰을 .env.local 에 박으세요.',
+    )
+  }
+
   return cfg
 }
 
