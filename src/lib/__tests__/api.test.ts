@@ -7,7 +7,7 @@ vi.mock('../config.js', () => ({
   })),
 }))
 
-import { pushTaskProgress, pushTaskArtifacts, getProjectState, getPlanState } from '../api.js'
+import { pushTaskProgress, pushTaskArtifacts, getProjectState, getPlanState, pushCommit } from '../api.js'
 import { TokbAuthError, TokbValidationError, TokbServerError } from '../errors.js'
 
 describe('api', () => {
@@ -146,6 +146,33 @@ describe('api', () => {
       expect(err).toBeInstanceOf(TokbServerError)
       expect((err as TokbServerError).status).toBe(500)
     }
+  })
+
+  it('pushCommit posts task_id / sha / committed_at / role', async () => {
+    let capturedBody: unknown = null
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: { body: string }) => {
+      capturedBody = JSON.parse(init.body)
+      return { ok: true, status: 200, json: async () => ({ ok: true }), text: async () => '' }
+    }))
+
+    await pushCommit('task-uuid', 'abc123', '2026-05-15T12:00:00Z', 'test')
+
+    expect(capturedBody).toEqual({
+      task_id: 'task-uuid',
+      sha: 'abc123',
+      committed_at: '2026-05-15T12:00:00Z',
+      role: 'test',
+    })
+  })
+
+  it('pushCommit URL is /api/build-plan/commits', async () => {
+    const stub = vi.fn(async (..._args: unknown[]) => ({ ok: true, status: 200, json: async () => ({}), text: async () => '' }))
+    vi.stubGlobal('fetch', stub)
+
+    await pushCommit('t', 'sha', '2026-05-15T12:00:00Z', 'code')
+
+    const calledUrl = stub.mock.calls[0][0] as string
+    expect(calledUrl).toBe('https://example.com/api/build-plan/commits')
   })
 
   it('throws plain Error on unknown status (418)', async () => {
