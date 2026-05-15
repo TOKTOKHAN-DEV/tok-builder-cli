@@ -196,5 +196,17 @@ unset TOKEN
 
 echo ""
 echo "✓ 부트스트랩 완료."
-echo "다음 단계: 이 디렉토리에서 Claude Code 열기"
-echo "  cd $SLUG && claude"
+echo ""
+if [ -n "${TMUX:-}" ]; then
+  echo "다음 단계: 이 디렉토리에서 Claude Code 열기 (tmux 안)"
+  echo "  cd $SLUG && claude"
+else
+  echo "다음 단계: tmux 세션 안에서 Claude Code 실행"
+  echo "  (omc team worker 화면을 같은 창에서 보기 위해 tmux 안 권장)"
+  echo ""
+  echo "  cd $SLUG"
+  echo "  tmux new-session -s tokb-$SLUG 'claude'"
+  echo ""
+  echo "이미 tmux 세션 안이면 그냥:"
+  echo "  cd $SLUG && claude"
+fi
