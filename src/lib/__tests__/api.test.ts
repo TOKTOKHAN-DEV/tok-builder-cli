@@ -7,7 +7,7 @@ vi.mock('../config.js', () => ({
   })),
 }))
 
-import { pushTaskProgress, pushTaskArtifacts, getProjectState } from '../api.js'
+import { pushTaskProgress, pushTaskArtifacts, getProjectState, getPlanState } from '../api.js'
 import { TokbAuthError, TokbValidationError, TokbServerError } from '../errors.js'
 
 describe('api', () => {
@@ -52,6 +52,59 @@ describe('api', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer tokb_apt_test' }),
       }),
     )
+  })
+
+  it('getPlanState calls GET state with phase query', async () => {
+    const stub = vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ phase: 'core-impl', current_phase: 'core-impl', groups: [] }),
+      text: async () => '',
+    }))
+    vi.stubGlobal('fetch', stub)
+
+    await getPlanState('plan-1', 'core-impl')
+
+    expect(stub).toHaveBeenCalledWith(
+      'https://example.com/api/agent/plans/plan-1/state?phase=core-impl',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer tokb_apt_test' }),
+      }),
+    )
+  })
+
+  it('getPlanState without phase omits query param', async () => {
+    const stub = vi.fn(async (..._args: unknown[]) => ({
+      ok: true, status: 200,
+      json: async () => ({ phase: 'design-spec', current_phase: 'design-spec', groups: [] }),
+      text: async () => '',
+    }))
+    vi.stubGlobal('fetch', stub)
+
+    await getPlanState('plan-1')
+
+    const calledUrl = stub.mock.calls[0][0] as string
+    expect(calledUrl).toBe('https://example.com/api/agent/plans/plan-1/state')
+    expect(calledUrl).not.toContain('?phase=')
+  })
+
+  it('getPlanState returns groups array typed', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({
+        phase: 'core-impl',
+        current_phase: 'core-impl',
+        groups: [
+          { parallel_group: 'auth', tasks: [{ id: 't1', client_id: 'c1', title: 'A', status: 'pending' }] },
+        ],
+      }),
+      text: async () => '',
+    })))
+
+    const res = await getPlanState('plan-1', 'core-impl')
+    expect(res.groups).toHaveLength(1)
+    expect(res.groups[0].parallel_group).toBe('auth')
+    expect(res.groups[0].tasks[0].id).toBe('t1')
   })
 
   it('throws TokbAuthError on 401', async () => {

@@ -3,6 +3,7 @@ import {
   runAccept,
   runComplete,
   getProjectState,
+  getPlanState,
   RUN_COMPLETION_STATUSES,
   type RunCompletionStatus,
 } from '../lib/api.js'
@@ -39,6 +40,16 @@ export function runCommand(program: Command): void {
     .action(async () => {
       const projectId = await requireField('project_id')
       const state = await getProjectState(projectId)
+      console.log(JSON.stringify(state, null, 2))
+    })
+
+  run
+    .command('plan')
+    .description('phase 의 parallel_group 별 task 묶음 (OMC team 병렬 dispatch 용)')
+    .option('--phase <slug>', 'phase slug. 생략 시 current_phase')
+    .action(async (opts: { phase?: string }) => {
+      const planId = await requireField('plan_id')
+      const state = await getPlanState(planId, opts.phase)
       console.log(JSON.stringify(state, null, 2))
     })
 }
