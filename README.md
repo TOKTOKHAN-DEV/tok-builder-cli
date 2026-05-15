@@ -49,6 +49,14 @@ above writes this for you automatically; for manual installs, run
 | `tokb phase status` | Print current phase + done/total task count. |
 | `tokb resume [--auto-push]` | Stop-hook context (plan status, in-progress tasks, git status). `--auto-push` is reserved for v1.x. |
 
+## 새 명령 (v0.6.0)
+
+시범 4차에서 추가된 명령. 병렬 dispatch + TDD 검증 흐름 지원.
+
+- `tokb run plan --phase <slug>` — 같은 phase 내 `parallel_group` 별 task 묶음 fetch. OMC team 병렬 dispatch 용.
+- `tokb commits push <task_id> <sha> --role test|code` — worker 가 commit 마다 호출. platform 의 TDD 검증에 사용 (test commit < code commit timestamp).
+- `tokb task progress <uuid> done --commit-sha-test <sha> --commit-sha-code <sha>` — auto task done 시 TDD 강제. test/code commit sha 두 개 모두 등록되어 있어야 done 처리됨.
+
 ## tokb group — group 단위 진행 관리
 
 group_key (예: design-spec phase의 `data-model`, core-impl의 `auth-login`) 단위로 task 묶음 관리.
@@ -91,11 +99,21 @@ tokb init tokb_apt_<your_token>
 
 Per-project state lives in `.tokb/config.json` (chmod `0600`) with these fields:
 
-- `push_token` (`tokb_apt_*`)
+- `push_token` (`tokb_apt_*`) — v0.6.0 부터 `.env.local` 의 `TOKB_PUSH_TOKEN` 으로 이관. config.json 의 `push_token` 은 backward compat 용 fallback.
 - `project_id`, `plan_id` (UUIDs)
 - `repo_url`, `vercel_url`, `supabase_url` (`https://` only)
 - `platform_base_url` (defaults to `https://pj-platform.vercel.app`, must be
   `https://`)
+
+## 환경 변수 (TOKB_PUSH_TOKEN)
+
+tok-builder-cli 는 `.env.local` 의 `TOKB_PUSH_TOKEN` 을 platform 인증에 사용합니다.
+
+빌드 시작 시 `tokb init` 이 자동으로 `.env.local` 에 박습니다. 사용자가 따로 만질 필요 없음.
+
+만료 시 platform UI 에서 새 빌드 시작 → 새 토큰 자동 박힘.
+
+옛 빌드 (config.json 의 `push_token` 기반) 도 그대로 동작 — `.env.local` 없으면 config.json fallback.
 
 ## Releases
 
