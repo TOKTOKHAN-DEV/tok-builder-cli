@@ -10,6 +10,7 @@ import { phaseCommand } from './commands/phase.js'
 import { resumeCommand } from './commands/resume.js'
 import { initCommand } from './commands/init.js'
 import { groupCommand } from './commands/group.js'
+import { commitsCommand } from './commands/commits.js'
 
 const require = createRequire(import.meta.url)
 const pkg = require('../package.json') as { version: string }
@@ -43,6 +44,7 @@ for (const register of [
   resumeCommand,
   initCommand,
   groupCommand,
+  commitsCommand,
 ]) {
   register(program)
 }

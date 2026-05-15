@@ -111,6 +111,22 @@ export async function getPlanState(planId: string, phase?: string): Promise<Plan
   return request<PlanStateResponse>('GET', `/api/agent/plans/${planId}/state${query}`)
 }
 
+export type CommitRole = 'test' | 'code'
+
+export async function pushCommit(
+  taskId: string,
+  sha: string,
+  committedAt: string,
+  role: CommitRole,
+): Promise<unknown> {
+  return request('POST', '/api/build-plan/commits', {
+    task_id: taskId,
+    sha,
+    committed_at: committedAt,
+    role,
+  })
+}
+
 export async function planUpsert(planId: string, jsonPath: string) {
   if (!jsonPath.endsWith('.json')) throw new Error(`planUpsert: path must end with .json (got ${jsonPath})`)
   const body = JSON.parse(await readFile(jsonPath, 'utf-8'))
