@@ -79,6 +79,38 @@ export async function getProjectState(projectId: string): Promise<ProjectState> 
   return request<ProjectState>('GET', `/api/agent/projects/${projectId}/state`)
 }
 
+export type PlanStateResponse = {
+  phase: string
+  current_phase: string
+  groups: Array<{
+    parallel_group: string
+    tasks: Array<{
+      id: string
+      client_id: string
+      phase_slug?: string
+      group_key: string | null
+      group_type: string | null
+      domain: string | null
+      parallel_group: string | null
+      title: string
+      description: string
+      acceptance_criteria: string
+      depends_on: string[]
+      status: TaskStatus
+      task_type: 'auto' | 'human_gate'
+      test_file_path: string | null
+      commit_sha_test: string | null
+      commit_sha_code: string | null
+      evidence_note: string | null
+    }>
+  }>
+}
+
+export async function getPlanState(planId: string, phase?: string): Promise<PlanStateResponse> {
+  const query = phase ? `?phase=${encodeURIComponent(phase)}` : ''
+  return request<PlanStateResponse>('GET', `/api/agent/plans/${planId}/state${query}`)
+}
+
 export async function planUpsert(planId: string, jsonPath: string) {
   if (!jsonPath.endsWith('.json')) throw new Error(`planUpsert: path must end with .json (got ${jsonPath})`)
   const body = JSON.parse(await readFile(jsonPath, 'utf-8'))
