@@ -26,10 +26,10 @@ describe('config', () => {
     }
   })
 
-  it('writeConfig 가 push_token 인자 받아도 config.json 에 안 박음 (env 분리 강제)', async () => {
+  it('writeConfig 가 push_token 인자 받아도 config.json 에 기록 안 함 (env 분리 강제)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tokb-test-'))
     try {
-      // any cast 로 push_token 박기 시도 (type system 우회) — 무시되어야 함
+      // any cast 로 push_token 기록 시도 (type system 우회) — 무시되어야 함
       await writeConfig(
         {
           project_id: '11111111-1111-4111-8111-111111111111',
@@ -48,7 +48,7 @@ describe('config', () => {
   it('writeConfig 가 기존 config.json 의 push_token 도 다음 write 때 제거 (마이그레이션)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tokb-test-'))
     try {
-      // 옛 구조 모사 — push_token 이 박혀있는 config.json 을 손으로 작성
+      // 옛 구조 모사 — push_token 이 기록된 config.json 을 손으로 작성
       const configDir = join(dir, '.tokb')
       await mkdir(configDir, { recursive: true, mode: 0o700 })
       await writeFile(

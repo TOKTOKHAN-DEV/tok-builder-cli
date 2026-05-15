@@ -60,10 +60,10 @@ export function initCommand(program: Command): void {
 
       console.log(`✓ 토큰 검증 완료, 프로젝트 ${verified.slug ?? verified.project_id} 설정 저장됨`)
 
-      // === .env.local 에 TOKB_PUSH_TOKEN 박기 (항상 — Supabase fetch 실패해도 token 은 박힘) ===
+      // === .env.local 에 TOKB_PUSH_TOKEN 기록 (항상 — Supabase fetch 실패해도 token 은 기록됨) ===
       // build repo 의 로컬 working tree 에만 write. GitHub commit X (.gitignore 의 .env*.local 패턴).
       await upsertEnvLocal(process.cwd(), [{ key: 'TOKB_PUSH_TOKEN', value: token }])
-      console.log('✓ .env.local 에 TOKB_PUSH_TOKEN 박음 (로컬 only, 권한 0600)')
+      console.log('✓ .env.local 에 TOKB_PUSH_TOKEN 기록 (로컬 only, 권한 0600)')
 
       // === .env.local: Supabase keys 로컬 주입 (fetch 가능할 때만, 기존 키 보존) ===
       if (verified.project_id) {
@@ -83,7 +83,7 @@ export function initCommand(program: Command): void {
               { key: 'NEXT_PUBLIC_SUPABASE_ANON_KEY', value: env.supabase_anon_key },
               { key: 'SUPABASE_SERVICE_ROLE_KEY', value: env.supabase_service_role_key },
             ])
-            console.log('✓ .env.local 에 Supabase keys 박음')
+            console.log('✓ .env.local 에 Supabase keys 기록')
           }
         } catch (err) {
           console.log(`⚠  .env.local fetch 실패 — ${err instanceof Error ? err.message : String(err)}`)
