@@ -35,11 +35,25 @@ export async function readConfig(cwd: string = process.cwd()): Promise<Config | 
   return ConfigSchema.parse(JSON.parse(raw))
 }
 
-export async function writeConfig(cfg: Partial<Config>, cwd: string = process.cwd()): Promise<void> {
+/**
+ * config.json 에는 메타 (project_id/plan_id/repo_url/vercel_url/supabase_url/platform_base_url) 만 저장.
+ * push_token 은 .env.local 의 TOKB_PUSH_TOKEN 으로 분리 (env 우선, secret 노출 면적 축소).
+ * 호환성: 인자에 push_token 들어와도 무시. 기존 config.json 의 push_token 도 다음 write 때 제거됨.
+ */
+export async function writeConfig(
+  cfg: Partial<Omit<Config, 'push_token'>>,
+  cwd: string = process.cwd(),
+): Promise<void> {
   const dir = join(cwd, CONFIG_DIR)
   await mkdir(dir, { recursive: true, mode: 0o700 })
-  const existing = (await readConfig(cwd)) ?? {}
-  const merged = ConfigSchema.parse({ ...existing, ...cfg })
+  const existing: Partial<Config> = (await readConfig(cwd)) ?? {}
+  // existing 의 push_token 도 제외 (메타만 저장)
+  const { push_token: _ignored, ...existingMeta } = existing
+  // cfg 에서도 push_token 이 (any 우회로) 들어왔다면 제거
+  const { push_token: _ignoredCfg, ...cfgMeta } = cfg as Partial<Config>
+  void _ignored
+  void _ignoredCfg
+  const merged = ConfigSchema.parse({ ...existingMeta, ...cfgMeta })
   await writeFile(join(dir, CONFIG_FILE), JSON.stringify(merged, null, 2), { mode: 0o600 })
 }
 

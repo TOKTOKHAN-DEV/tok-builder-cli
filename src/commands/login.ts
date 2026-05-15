@@ -1,13 +1,13 @@
 import { Command } from 'commander'
-import { writeConfig } from '../lib/config.js'
+import { upsertEnvLocal } from '../lib/env-local.js'
 
 export function loginCommand(program: Command): void {
   program
     .command('login')
     .argument('<token>', 'platform UI 에서 발급된 tokb_apt_* 토큰')
-    .description('토큰을 .tokb/config.json 에 저장')
+    .description('토큰을 .env.local 의 TOKB_PUSH_TOKEN 으로 저장')
     .action(async (token: string) => {
-      await writeConfig({ push_token: token })
-      console.log('✓ 토큰이 .tokb/config.json 에 저장되었습니다')
+      await upsertEnvLocal(process.cwd(), [{ key: 'TOKB_PUSH_TOKEN', value: token }])
+      console.log('✓ 토큰이 .env.local 의 TOKB_PUSH_TOKEN 으로 저장되었습니다')
     })
 }
