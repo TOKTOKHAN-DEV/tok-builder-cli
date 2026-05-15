@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { requireConfig } from './config.js'
+import { TokbAuthError, TokbValidationError, TokbServerError } from './errors.js'
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const cfg = await requireConfig()
@@ -14,6 +15,26 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const res = await fetch(`${cfg.platform_base_url}${path}`, init)
   if (!res.ok) {
     const text = await res.text()
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      parsed = undefined
+    }
+    if (res.status === 401) {
+      throw new TokbAuthError()
+    }
+    if (res.status === 422) {
+      const obj = (parsed && typeof parsed === 'object') ? (parsed as Record<string, unknown>) : {}
+      const rawIssues = obj.issues
+      const issues = Array.isArray(rawIssues)
+        ? (rawIssues as { field: string; message: string }[])
+        : [{ field: '', message: typeof obj.error === 'string' ? obj.error : text }]
+      throw new TokbValidationError(issues)
+    }
+    if (res.status >= 500) {
+      throw new TokbServerError(res.status)
+    }
     const truncated = text.length > 200 ? text.slice(0, 200) + '…' : text
     throw new Error(`${method} ${path} failed: ${res.status} ${truncated}`)
   }

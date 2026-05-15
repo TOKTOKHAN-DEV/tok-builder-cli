@@ -8,6 +8,7 @@ vi.mock('../config.js', () => ({
 }))
 
 import { pushTaskProgress, pushTaskArtifacts, getProjectState } from '../api.js'
+import { TokbAuthError, TokbValidationError, TokbServerError } from '../errors.js'
 
 describe('api', () => {
   beforeEach(() => {
@@ -58,6 +59,64 @@ describe('api', () => {
       'fetch',
       vi.fn(async () => ({ ok: false, status: 401, text: async () => 'unauthorized' })),
     )
-    await expect(pushTaskProgress('task-1', 'done')).rejects.toThrow(/401/)
+    await expect(pushTaskProgress('task-1', 'done')).rejects.toThrow(TokbAuthError)
+  })
+
+  it('throws TokbAuthError on 401', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 401, text: async () => 'unauthorized' })),
+    )
+    await expect(pushTaskProgress('task-1', 'done')).rejects.toBeInstanceOf(TokbAuthError)
+  })
+
+  it('throws TokbValidationError on 422 with issues array', async () => {
+    const issues = [{ field: 'x', message: 'bad' }]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 422,
+        text: async () => JSON.stringify({ error: 'PlanValidationFailed', issues }),
+      })),
+    )
+    try {
+      await pushTaskProgress('task-1', 'done')
+      throw new Error('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(TokbValidationError)
+      expect((err as TokbValidationError).issues).toEqual(issues)
+    }
+  })
+
+  it('throws TokbServerError on 500', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 500, text: async () => 'internal' })),
+    )
+    try {
+      await pushTaskProgress('task-1', 'done')
+      throw new Error('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(TokbServerError)
+      expect((err as TokbServerError).status).toBe(500)
+    }
+  })
+
+  it('throws plain Error on unknown status (418)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 418, text: async () => 'teapot' })),
+    )
+    try {
+      await pushTaskProgress('task-1', 'done')
+      throw new Error('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error)
+      expect(err).not.toBeInstanceOf(TokbAuthError)
+      expect(err).not.toBeInstanceOf(TokbValidationError)
+      expect(err).not.toBeInstanceOf(TokbServerError)
+      expect((err as Error).message).toMatch(/418/)
+    }
   })
 })
