@@ -7,7 +7,7 @@ export function filterGroupTasks<
 >(tasks: T[], groupKey: string, phaseSlug?: string): T[] {
   return tasks.filter((t) => {
     if (t.group_key !== groupKey) return false;
-    if (phaseSlug && t.phase_slug !== phaseSlug) return false;
+    if (phaseSlug !== undefined && t.phase_slug !== phaseSlug) return false;
     return true;
   });
 }
