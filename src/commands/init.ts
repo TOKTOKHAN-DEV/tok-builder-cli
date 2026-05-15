@@ -1,11 +1,11 @@
 import { Command } from 'commander'
 import { existsSync } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { bootstrapDesignAssets } from '../lib/design-assets/index.js'
 import { verifyToken } from '../lib/api.js'
 import { writeConfig } from '../lib/config.js'
+import { upsertEnvLocal } from '../lib/env-local.js'
 import { runPreflight } from '../lib/preflight.js'
 
 type VerifyResponse = {
@@ -48,8 +48,8 @@ export function initCommand(program: Command): void {
         process.exit(1)
       }
 
+      // config.json 에는 메타만 — push_token 은 .env.local 의 TOKB_PUSH_TOKEN 으로 분리
       await writeConfig({
-        push_token: token,
         project_id: verified.project_id,
         plan_id: verified.plan_id,
         repo_url: verified.repo_url,
@@ -60,9 +60,12 @@ export function initCommand(program: Command): void {
 
       console.log(`✓ 토큰 검증 완료, 프로젝트 ${verified.slug ?? verified.project_id} 설정 저장됨`)
 
-      // === .env.local: Supabase keys 로컬 주입 ===
-      // build repo 의 로컬 working tree 에만 write. GitHub commit X.
-      // .gitignore 의 .env*.local 패턴으로 실수 add 도 차단됨.
+      // === .env.local 에 TOKB_PUSH_TOKEN 박기 (항상 — Supabase fetch 실패해도 token 은 박힘) ===
+      // build repo 의 로컬 working tree 에만 write. GitHub commit X (.gitignore 의 .env*.local 패턴).
+      await upsertEnvLocal(process.cwd(), [{ key: 'TOKB_PUSH_TOKEN', value: token }])
+      console.log('✓ .env.local 에 TOKB_PUSH_TOKEN 박음 (로컬 only, 권한 0600)')
+
+      // === .env.local: Supabase keys 로컬 주입 (fetch 가능할 때만, 기존 키 보존) ===
       if (verified.project_id) {
         try {
           const envRes = await fetch(
@@ -75,14 +78,12 @@ export function initCommand(program: Command): void {
             console.log(`⚠  .env.local fetch 실패 (${envRes.status}) — omc 가 supabase 명령 실행 시 막힐 수 있음`)
           } else {
             const env = (await envRes.json()) as EnvResponse
-            const envContent = [
-              `NEXT_PUBLIC_SUPABASE_URL=${env.supabase_url}`,
-              `NEXT_PUBLIC_SUPABASE_ANON_KEY=${env.supabase_anon_key}`,
-              `SUPABASE_SERVICE_ROLE_KEY=${env.supabase_service_role_key}`,
-              '',
-            ].join('\n')
-            await writeFile(join(process.cwd(), '.env.local'), envContent, { mode: 0o600 })
-            console.log('✓ .env.local 작성 완료 (로컬 only, 권한 0600)')
+            await upsertEnvLocal(process.cwd(), [
+              { key: 'NEXT_PUBLIC_SUPABASE_URL', value: env.supabase_url },
+              { key: 'NEXT_PUBLIC_SUPABASE_ANON_KEY', value: env.supabase_anon_key },
+              { key: 'SUPABASE_SERVICE_ROLE_KEY', value: env.supabase_service_role_key },
+            ])
+            console.log('✓ .env.local 에 Supabase keys 박음')
           }
         } catch (err) {
           console.log(`⚠  .env.local fetch 실패 — ${err instanceof Error ? err.message : String(err)}`)
