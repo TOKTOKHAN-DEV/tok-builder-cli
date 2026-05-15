@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { pushCommit, type CommitRole } from '../lib/api.js'
 
 const VALID_ROLES: ReadonlyArray<CommitRole> = ['test', 'code']
@@ -19,7 +19,7 @@ export function commitsCommand(program: Command): void {
       // git log -1 --format=%cI <sha> 로 committer date (ISO 8601) 추출
       let committedAt: string
       try {
-        committedAt = execSync(`git log -1 --format=%cI ${sha}`, { encoding: 'utf-8' }).trim()
+        committedAt = execFileSync('git', ['log', '-1', '--format=%cI', sha], { encoding: 'utf-8' }).trim()
       } catch {
         throw new Error(`git log 로 commit ${sha} 의 timestamp 추출 실패. 잘못된 sha 또는 git repo 아님`)
       }
