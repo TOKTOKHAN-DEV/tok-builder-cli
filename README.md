@@ -109,9 +109,9 @@ Per-project state lives in `.tokb/config.json` (chmod `0600`) with these fields:
 
 tok-builder-cli 는 `.env.local` 의 `TOKB_PUSH_TOKEN` 을 platform 인증에 사용합니다.
 
-빌드 시작 시 `tokb init` 이 자동으로 `.env.local` 에 박습니다. 사용자가 따로 만질 필요 없음.
+빌드 시작 시 `tokb init` 이 자동으로 `.env.local` 에 기록합니다. 사용자가 따로 만질 필요 없음.
 
-만료 시 platform UI 에서 새 빌드 시작 → 새 토큰 자동 박힘.
+만료 시 platform UI 에서 새 빌드 시작 → 새 토큰 자동 기록.
 
 옛 빌드 (config.json 의 `push_token` 기반) 도 그대로 동작 — `.env.local` 없으면 config.json fallback.
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1] - 2026-05-15
+
+### Changed
+- `init` 콘솔 출력 / 주석 / README / test description 의 "박음/박힘/박기" 표현을 "기록"으로 통일 (wording polish, 동작 변경 없음)
+
 ## [0.6.0] - 2026-05-15
 
 ### Added
