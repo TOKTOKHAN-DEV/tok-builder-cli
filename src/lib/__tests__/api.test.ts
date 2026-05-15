@@ -19,7 +19,7 @@ describe('api', () => {
   })
 
   it('pushTaskProgress posts with bearer token + status body', async () => {
-    await pushTaskProgress('task-1', 'in_progress', 'starting')
+    await pushTaskProgress('task-1', 'in_progress', { note: 'starting' })
     expect(fetch).toHaveBeenCalledWith(
       'https://example.com/api/agent/tasks/task-1/progress',
       expect.objectContaining({
@@ -31,6 +31,42 @@ describe('api', () => {
         body: JSON.stringify({ status: 'in_progress', notes: 'starting' }),
       }),
     )
+  })
+
+  it('pushTaskProgress with commit_sha posts both fields', async () => {
+    let capturedBody: unknown = null
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: { body: string }) => {
+      capturedBody = JSON.parse(init.body)
+      return { ok: true, status: 200, json: async () => ({}), text: async () => '' }
+    }))
+
+    await pushTaskProgress('task-1', 'done', {
+      note: 'OK',
+      commitShaTest: 'abc',
+      commitShaCode: 'def',
+    })
+
+    expect(capturedBody).toEqual({
+      status: 'done',
+      notes: 'OK',
+      commit_sha_test: 'abc',
+      commit_sha_code: 'def',
+    })
+  })
+
+  it('pushTaskProgress without commit_sha still works (in_progress 등)', async () => {
+    let capturedBody: unknown = null
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: { body: string }) => {
+      capturedBody = JSON.parse(init.body)
+      return { ok: true, status: 200, json: async () => ({}), text: async () => '' }
+    }))
+
+    await pushTaskProgress('task-1', 'in_progress', { note: 'starting' })
+
+    expect(capturedBody).toEqual({
+      status: 'in_progress',
+      notes: 'starting',
+    })
   })
 
   it('pushTaskArtifacts posts artifacts array', async () => {
