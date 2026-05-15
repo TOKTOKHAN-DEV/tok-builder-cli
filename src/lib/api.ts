@@ -50,8 +50,23 @@ export const TASK_STATUSES = ['pending', 'in_progress', 'blocked', 'done', 'skip
 export type RunCompletionStatus = 'completed' | 'failed'
 export const RUN_COMPLETION_STATUSES = ['completed', 'failed'] as const
 
-export async function pushTaskProgress(taskId: string, status: TaskStatus, note?: string) {
-  return request('POST', `/api/agent/tasks/${taskId}/progress`, { status, notes: note })
+export interface PushTaskProgressOptions {
+  note?: string
+  commitShaTest?: string
+  commitShaCode?: string
+}
+
+export async function pushTaskProgress(
+  taskId: string,
+  status: TaskStatus,
+  opts: PushTaskProgressOptions = {},
+) {
+  return request('POST', `/api/agent/tasks/${taskId}/progress`, {
+    status,
+    notes: opts.note,
+    commit_sha_test: opts.commitShaTest,
+    commit_sha_code: opts.commitShaCode,
+  })
 }
 
 export async function pushTaskArtifacts(

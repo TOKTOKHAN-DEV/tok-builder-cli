@@ -17,16 +17,33 @@ export function taskCommand(program: Command): void {
     .addArgument(new Argument('<id>', 'Task UUID'))
     .addArgument(new Argument('<status>', 'task 상태').choices([...TASK_STATUSES]))
     .option('--note <note>', '진행 이벤트에 첨부할 메모 (선택)')
-    .action(async (id: string, status: TaskStatus, opts: { note?: string }) => {
-      await pushTaskProgress(id, status, opts.note)
-      console.log(`✓ task ${id} → ${status}`)
-    })
+    .option('--commit-sha-test <sha>', 'auto task done 시 test commit SHA (TDD 강제)')
+    .option('--commit-sha-code <sha>', 'auto task done 시 code commit SHA (TDD 강제)')
+    .action(
+      async (
+        id: string,
+        status: TaskStatus,
+        opts: { note?: string; commitShaTest?: string; commitShaCode?: string },
+      ) => {
+        await pushTaskProgress(id, status, {
+          note: opts.note,
+          commitShaTest: opts.commitShaTest,
+          commitShaCode: opts.commitShaCode,
+        })
+        console.log(`✓ task ${id} → ${status}`)
+      },
+    )
 
   task
     .command('done <id>')
     .description('`tokb task progress <id> done` 단축형')
-    .action(async (id: string) => {
-      await pushTaskProgress(id, 'done')
+    .option('--commit-sha-test <sha>', 'auto task done 시 test commit SHA (TDD 강제)')
+    .option('--commit-sha-code <sha>', 'auto task done 시 code commit SHA (TDD 강제)')
+    .action(async (id: string, opts: { commitShaTest?: string; commitShaCode?: string }) => {
+      await pushTaskProgress(id, 'done', {
+        commitShaTest: opts.commitShaTest,
+        commitShaCode: opts.commitShaCode,
+      })
       console.log(`✓ task ${id} → done`)
     })
 
