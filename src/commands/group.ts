@@ -2,16 +2,27 @@ import { Command } from 'commander'
 import { getProjectState } from '../lib/api.js'
 import { requireField } from '../lib/config.js'
 
+export function filterGroupTasks<
+  T extends { group_key: string | null; phase_slug: string },
+>(tasks: T[], groupKey: string, phaseSlug?: string): T[] {
+  return tasks.filter((t) => {
+    if (t.group_key !== groupKey) return false;
+    if (phaseSlug && t.phase_slug !== phaseSlug) return false;
+    return true;
+  });
+}
+
 export function groupCommand(program: Command): void {
   const group = program.command('group').description('group 단위 진행 관리')
 
   group
     .command('status <groupKey>')
     .description('group 의 모든 task 진행 상태 출력')
-    .action(async (groupKey: string) => {
+    .option('--phase <slug>', '특정 phase 로 범위 제한')
+    .action(async (groupKey: string, opts: { phase?: string }) => {
       const projectId = await requireField('project_id')
       const state = await getProjectState(projectId)
-      const groupTasks = state.tasks.filter((t) => t.group_key === groupKey)
+      const groupTasks = filterGroupTasks(state.tasks, groupKey, opts.phase)
 
       if (groupTasks.length === 0) {
         console.log(`group '${groupKey}' 의 task 없음`)
@@ -29,10 +40,11 @@ export function groupCommand(program: Command): void {
     .command('complete <groupKey>')
     .description('group 모든 task done 시 PR 생성 trigger')
     .option('--dry-run', '실 실행 없이 조건 확인만')
-    .action(async (groupKey: string, opts: { dryRun?: boolean }) => {
+    .option('--phase <slug>', '특정 phase 로 범위 제한')
+    .action(async (groupKey: string, opts: { dryRun?: boolean; phase?: string }) => {
       const projectId = await requireField('project_id')
       const state = await getProjectState(projectId)
-      const groupTasks = state.tasks.filter((t) => t.group_key === groupKey)
+      const groupTasks = filterGroupTasks(state.tasks, groupKey, opts.phase)
 
       if (groupTasks.length === 0) {
         console.error(`group '${groupKey}' 의 task 없음`)
