@@ -54,14 +54,6 @@ describe('api', () => {
     )
   })
 
-  it('throws on non-2xx response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({ ok: false, status: 401, text: async () => 'unauthorized' })),
-    )
-    await expect(pushTaskProgress('task-1', 'done')).rejects.toThrow(TokbAuthError)
-  })
-
   it('throws TokbAuthError on 401', async () => {
     vi.stubGlobal(
       'fetch',
