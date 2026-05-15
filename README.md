@@ -54,10 +54,14 @@ above writes this for you automatically; for manual installs, run
 group_key (예: design-spec phase의 `data-model`, core-impl의 `auth-login`) 단위로 task 묶음 관리.
 
 ```bash
-tokb group status <groupKey>      # group의 task 진행 상태 출력
-tokb group complete <groupKey>    # 모든 task done 검증 후 PR 생성 trigger
-tokb group complete <groupKey> --dry-run  # 검증만, PR 생성 skip
+tokb group status <groupKey>                       # group의 task 진행 상태 출력
+tokb group status <groupKey> --phase <phaseSlug>   # 특정 phase 로 범위 제한
+tokb group complete <groupKey>                     # 모든 task done 검증 후 PR 생성 trigger
+tokb group complete <groupKey> --phase <phaseSlug> # 특정 phase 로 범위 제한
+tokb group complete <groupKey> --dry-run           # 검증만, PR 생성 skip
 ```
+
+`--phase` 옵션은 같은 group_key 가 여러 phase 에 있을 때 (예: Phase 1 design-spec 의 `auth` 명세 + Phase 4 core-impl 의 `auth` 도메인) phase 차원 분리용. 없으면 group_key 만 매칭 (옛 동작 호환).
 
 CLAUDE.md (template)의 group 마지막 task done 흐름에서 omc가 자율 호출.
 v1은 검증만 수행, v1.x에서 자동 PR 생성 흐름 추가 예정.
