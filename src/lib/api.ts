@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { z } from 'zod'
 import { requireConfig } from './config.js'
 import { TokbAuthError, TokbValidationError, TokbServerError } from './errors.js'
 
@@ -123,9 +124,36 @@ export type PlanStateResponse = {
   }>
 }
 
+// runtime shape guard — type 만 의존 시 silent corruption 방지.
+// passthrough() 로 추가 필드 (title/depends_on/status/task_type/commit_sha 등) 허용.
+const PlanStateTaskShape = z.object({
+  id: z.string(),
+  client_id: z.string(),
+  phase_slug: z.string(),
+  group_key: z.string().nullable(),
+  domain: z.string().nullable(),
+  description: z.string(),
+  acceptance_criteria: z.string(),
+  test_file_path: z.string().nullable(),
+}).passthrough()
+
+const PlanStateGroupShape = z.object({
+  parallel_group: z.string(),
+  group_key: z.string().nullable(),
+  phase_slug: z.string(),
+  tasks: z.array(PlanStateTaskShape),
+}).passthrough()
+
+const PlanStateResponseShape = z.object({
+  phase: z.string(),
+  current_phase: z.string(),
+  groups: z.array(PlanStateGroupShape),
+}).passthrough()
+
 export async function getPlanState(planId: string, phase?: string): Promise<PlanStateResponse> {
   const query = phase ? `?phase=${encodeURIComponent(phase)}` : ''
-  return request<PlanStateResponse>('GET', `/api/agent/plans/${planId}/state${query}`)
+  const raw = await request<unknown>('GET', `/api/agent/plans/${planId}/state${query}`)
+  return PlanStateResponseShape.parse(raw) as PlanStateResponse
 }
 
 export type CommitRole = 'test' | 'code'
