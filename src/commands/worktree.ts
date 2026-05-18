@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 
@@ -21,7 +21,7 @@ export async function worktreeCreate(opts: WorktreeCreateOpts): Promise<Worktree
     return { path: wtPath, branch }
   }
   mkdirSync(path.dirname(wtPath), { recursive: true })
-  execSync(`git worktree add -b ${branch} ${wtPath}`, { cwd, stdio: 'pipe' })
+  execFileSync('git', ['worktree', 'add', '-b', branch, wtPath], { cwd, stdio: 'pipe' })
   return { path: wtPath, branch }
 }
 
@@ -34,7 +34,7 @@ export async function worktreeCleanup(opts: WorktreeCleanupOpts): Promise<void> 
   const cwd = opts.cwd ?? process.cwd()
   const wtPath = path.join(cwd, '.tokb', 'worktrees', opts.groupKey)
   if (!existsSync(wtPath)) return
-  execSync(`git worktree remove --force ${wtPath}`, { cwd, stdio: 'pipe' })
+  execFileSync('git', ['worktree', 'remove', '--force', wtPath], { cwd, stdio: 'pipe' })
 }
 
 export function worktreeCommand(program: Command): void {
