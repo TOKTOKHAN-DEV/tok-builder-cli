@@ -1,5 +1,14 @@
-import { describe, it, expect } from 'vitest'
-import { buildWorkerPrompt } from '../worker'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { buildWorkerPrompt, workerPromptAction } from '../worker'
+import { requireField } from '../../lib/config.js'
+import { getPlanState } from '../../lib/api.js'
+
+vi.mock('../../lib/config.js', () => ({
+  requireField: vi.fn(),
+}))
+vi.mock('../../lib/api.js', () => ({
+  getPlanState: vi.fn(),
+}))
 
 const sampleSpecTask = {
   id: 'uuid-1',
@@ -97,5 +106,90 @@ describe('buildWorkerPrompt', () => {
       expect(prompt).toContain('TDD red→green')
       expect(prompt).toContain('tokb commits push')
     }
+  })
+})
+
+describe('workerPromptAction', () => {
+  beforeEach(() => {
+    vi.mocked(requireField).mockResolvedValue('plan-uuid-1')
+    vi.mocked(getPlanState).mockReset()
+  })
+
+  it('happy path — planId config 로드 + state API 호출 + group 매칭 + prompt 반환', async () => {
+    vi.mocked(getPlanState).mockResolvedValue({
+      phase: 'design-spec',
+      current_phase: 'design-spec',
+      groups: [
+        {
+          parallel_group: 'auth',
+          group_key: 'auth',
+          phase_slug: 'design-spec',
+          tasks: [
+            {
+              id: 'uuid-1',
+              client_id: 't-001',
+              phase_slug: 'design-spec',
+              group_key: 'auth',
+              group_type: null,
+              domain: 'auth',
+              parallel_group: 'auth',
+              title: 'auth 데이터 모델',
+              description: '[SCR-001] auth 데이터 모델 명세',
+              acceptance_criteria: '- [mechanical] specs/auth/data-model.md',
+              depends_on: [],
+              status: 'pending',
+              task_type: 'auto',
+              test_file_path: null,
+              commit_sha_test: null,
+              commit_sha_code: null,
+              evidence_note: null,
+            },
+          ],
+        },
+      ],
+    })
+
+    const prompt = await workerPromptAction({
+      group: 'auth',
+      phase: 'design-spec',
+      worktree: '/repo/.tokb/worktrees/auth',
+    })
+
+    expect(requireField).toHaveBeenCalledWith('plan_id')
+    expect(getPlanState).toHaveBeenCalledWith('plan-uuid-1', 'design-spec')
+    expect(prompt).toContain('uuid-1')
+    expect(prompt).toContain('phase_slug: design-spec')
+    expect(prompt).toContain('feat/auth')
+  })
+
+  it('group 매칭 0 — throw + 명령 / phase / group 표시', async () => {
+    vi.mocked(getPlanState).mockResolvedValue({
+      phase: 'design-spec',
+      current_phase: 'design-spec',
+      groups: [],
+    })
+
+    await expect(
+      workerPromptAction({ group: 'auth', phase: 'design-spec', worktree: '/p' }),
+    ).rejects.toThrow('phase=design-spec group=auth 의 task 없음')
+  })
+
+  it('group.group_key === null 인 group 은 매칭 안 됨', async () => {
+    vi.mocked(getPlanState).mockResolvedValue({
+      phase: 'design-spec',
+      current_phase: 'design-spec',
+      groups: [
+        {
+          parallel_group: 'g1',
+          group_key: null,
+          phase_slug: 'design-spec',
+          tasks: [],
+        },
+      ],
+    })
+
+    await expect(
+      workerPromptAction({ group: 'auth', phase: 'design-spec', worktree: '/p' }),
+    ).rejects.toThrow('의 task 없음')
   })
 })
