@@ -99,10 +99,12 @@ export type PlanStateResponse = {
   current_phase: string
   groups: Array<{
     parallel_group: string
+    group_key: string | null
+    phase_slug: string
     tasks: Array<{
       id: string
       client_id: string
-      phase_slug?: string
+      phase_slug: string
       group_key: string | null
       group_type: string | null
       domain: string | null
