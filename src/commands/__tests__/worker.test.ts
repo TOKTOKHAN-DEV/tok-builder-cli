@@ -10,18 +10,29 @@ vi.mock('../../lib/api.js', () => ({
   getPlanState: vi.fn(),
 }))
 
-const sampleSpecTask = {
+import type { WorkerTask } from '../worker'
+
+const sampleSpecTask: WorkerTask = {
   id: 'uuid-1',
   client_id: 't-001',
   phase_slug: 'design-spec',
   group_key: 'auth',
+  group_type: null,
   domain: 'auth',
+  parallel_group: 'auth',
+  title: 'auth 데이터 모델',
   description: '[SCR-001] auth 데이터 모델 명세',
   acceptance_criteria: '- [mechanical] specs/auth/data-model.md 존재\n- [semantic] PRD 와 정합',
+  depends_on: [],
+  status: 'pending',
+  task_type: 'auto',
   test_file_path: null,
+  commit_sha_test: null,
+  commit_sha_code: null,
+  evidence_note: null,
 }
 
-const sampleCodeTask = {
+const sampleCodeTask: WorkerTask = {
   ...sampleSpecTask,
   id: 'uuid-2',
   phase_slug: 'core-impl',
