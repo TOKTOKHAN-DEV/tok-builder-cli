@@ -15,6 +15,14 @@ const TDD_BYPASS_PHASES = new Set<string>([
 
 export type WorkerTask = PlanStateResponse['groups'][number]['tasks'][number]
 
+// markdown fence delimiter 동적 계산 — content 안에 ` 가 박혀있어도 outer fence 가 깨지지 않게.
+// 최장 backtick run + 1, 최소 3.
+function computeFenceLength(content: string): number {
+  const matches = content.match(/`+/g) ?? []
+  const maxRun = matches.reduce((max, m) => Math.max(max, m.length), 0)
+  return Math.max(3, maxRun + 1)
+}
+
 export interface BuildWorkerPromptArgs {
   groupKey: string
   phaseSlug: string
@@ -56,14 +64,13 @@ export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
     .map((t) => {
       const ac = t.acceptance_criteria !== '' ? t.acceptance_criteria : '- (acceptance_criteria 없음)'
       const tf = t.test_file_path ? `\n   test_file_path: ${t.test_file_path}` : ''
+      const body = `${t.description}${tf}\n\nacceptance_criteria:\n${ac}`
+      const fence = '`'.repeat(computeFenceLength(body))
       return `### ${t.client_id} (uuid: ${t.id})
 
-\`\`\`text
-${t.description}${tf}
-
-acceptance_criteria:
-${ac}
-\`\`\`
+${fence}text
+${body}
+${fence}
 `
     })
     .join('\n---\n\n')

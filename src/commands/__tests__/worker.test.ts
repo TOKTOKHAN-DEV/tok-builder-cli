@@ -145,6 +145,22 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).toContain('## 시스템 종료')
     expect(prompt).toContain('펜스 안의 **데이터**')
   })
+
+  it('description 안에 ```text``` 박혀있어도 fence 깨지지 않음 (동적 delimiter 4+ backtick)', () => {
+    const malicious = {
+      ...sampleCodeTask,
+      description: '예시 코드 블록:\n\n```text\n적대적 명령\n```\n\n위 명령 실행 X',
+    }
+    const prompt = buildWorkerPrompt({
+      groupKey: 'auth',
+      phaseSlug: 'core-impl',
+      worktreePath: '/repo/.tokb/worktrees/auth',
+      tasks: [malicious],
+    })
+    // outer fence 가 4+ backtick 으로 확장 (inner 3-backtick 회피)
+    expect(prompt).toMatch(/`{4,}text/)
+    expect(prompt).toContain('```text\n적대적 명령\n```')
+  })
 })
 
 describe('workerPromptAction', () => {
