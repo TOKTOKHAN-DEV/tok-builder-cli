@@ -131,7 +131,23 @@ describe('api', () => {
         phase: 'core-impl',
         current_phase: 'core-impl',
         groups: [
-          { parallel_group: 'auth', tasks: [{ id: 't1', client_id: 'c1', title: 'A', status: 'pending' }] },
+          {
+            parallel_group: 'auth',
+            group_key: 'auth',
+            phase_slug: 'core-impl',
+            tasks: [{
+              id: 't1',
+              client_id: 'c1',
+              phase_slug: 'core-impl',
+              group_key: 'auth',
+              domain: 'auth',
+              description: 'A description',
+              acceptance_criteria: '- ok',
+              test_file_path: null,
+              title: 'A',
+              status: 'pending',
+            }],
+          },
         ],
       }),
       text: async () => '',
@@ -141,6 +157,31 @@ describe('api', () => {
     expect(res.groups).toHaveLength(1)
     expect(res.groups[0].parallel_group).toBe('auth')
     expect(res.groups[0].tasks[0].id).toBe('t1')
+  })
+
+  it('shape guard — id 누락 응답 → zod throw', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      phase: 'core-impl',
+      current_phase: 'core-impl',
+      groups: [
+        {
+          parallel_group: 'auth',
+          group_key: 'auth',
+          phase_slug: 'core-impl',
+          tasks: [{
+            // id 누락
+            client_id: 't-001',
+            phase_slug: 'core-impl',
+            group_key: 'auth',
+            domain: 'auth',
+            description: 'x',
+            acceptance_criteria: '',
+            test_file_path: null,
+          }],
+        },
+      ],
+    })))
+    await expect(getPlanState('plan-1', 'core-impl')).rejects.toThrow()
   })
 
   it('throws TokbAuthError on 401', async () => {
