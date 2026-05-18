@@ -1,7 +1,10 @@
 import { Command } from 'commander'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { z } from 'zod'
 
+// ⚠️ pj-platform 의 lib/build-plan/constants.ts TDD_BYPASS_PHASES 와 동기 필수.
+// phase set 변경 시 양쪽 같이 업데이트. (cli 와 platform 의 drift 방지)
 const TDD_BYPASS_PHASES = new Set<string>([
   'design-spec',
   'infra-setup',
@@ -9,6 +12,21 @@ const TDD_BYPASS_PHASES = new Set<string>([
   'release',
   'handoff',
 ])
+
+const WorkerTaskSchema = z.object({
+  id: z.string(),
+  client_id: z.string(),
+  phase_slug: z.string(),
+  group_key: z.string(),
+  domain: z.string().nullable(),
+  description: z.string(),
+  acceptance_criteria: z.string().nullable(),
+  test_file_path: z.string().nullable(),
+})
+
+const PlanSchema = z.object({
+  tasks: z.array(WorkerTaskSchema),
+})
 
 export interface WorkerTask {
   id: string
@@ -86,7 +104,7 @@ ${ac}
 2. leader workspace 의 \`.env.local\` symlink (\`TOKB_PUSH_TOKEN\` 공유):
    \`\`\`bash
    LEADER_ROOT=$(git rev-parse --show-superproject-working-tree 2>/dev/null || \\
-                 dirname $(dirname $(dirname "$(pwd)")))
+                 dirname "$(dirname "$(dirname "$(pwd)")")")
    ln -sf "\${LEADER_ROOT}/.env.local" .env.local
    \`\`\`
 3. \`pnpm install --frozen-lockfile\`
@@ -126,7 +144,13 @@ export function workerCommand(program: Command): void {
         console.error('✗ .tokb/plan.json 없음 — Phase 1 (tokb-generate-build-plan) 먼저 진행')
         process.exit(1)
       }
-      const plan = JSON.parse(readFileSync(planPath, 'utf-8')) as { tasks: WorkerTask[] }
+      const rawPlan: unknown = JSON.parse(readFileSync(planPath, 'utf-8'))
+      const parseResult = PlanSchema.safeParse(rawPlan)
+      if (!parseResult.success) {
+        console.error('✗ .tokb/plan.json schema 오류:', parseResult.error.message)
+        process.exit(1)
+      }
+      const plan = parseResult.data
       const tasks = plan.tasks.filter(
         (t) => t.phase_slug === opts.phase && t.group_key === opts.group,
       )
