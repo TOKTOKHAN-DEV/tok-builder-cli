@@ -22,11 +22,10 @@ if [[ ! "$PLATFORM_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
 fi
 
 echo "=== 사전 점검 ==="
-for cmd in node git gh tmux; do
+for cmd in node git gh; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "✗ $cmd 가 설치되어 있지 않습니다" >&2
     case "$cmd" in
-      tmux) echo "  brew install tmux  # macOS" >&2 ;;
       gh)   echo "  brew install gh && gh auth login  # macOS" >&2 ;;
       node) echo "  Node ${MIN_NODE_MAJOR}+ 를 nvm/asdf/brew 로 설치해주세요" >&2 ;;
     esac
@@ -197,16 +196,5 @@ unset TOKEN
 echo ""
 echo "✓ 부트스트랩 완료."
 echo ""
-if [ -n "${TMUX:-}" ]; then
-  echo "다음 단계: 이 디렉토리에서 Claude Code 열기 (tmux 안)"
-  echo "  cd $SLUG && claude"
-else
-  echo "다음 단계: tmux 세션 안에서 Claude Code 실행"
-  echo "  (omc team worker 화면을 같은 창에서 보기 위해 tmux 안 권장)"
-  echo ""
-  echo "  cd $SLUG"
-  echo "  tmux new-session -s tokb-$SLUG 'claude'"
-  echo ""
-  echo "이미 tmux 세션 안이면 그냥:"
-  echo "  cd $SLUG && claude"
-fi
+echo "다음 단계: 이 디렉토리에서 Claude Code 열기"
+echo "  cd $SLUG && claude"
