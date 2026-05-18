@@ -1,7 +1,7 @@
 import { Command } from 'commander'
-import { existsSync, readFileSync } from 'node:fs'
-import path from 'node:path'
-import { z } from 'zod'
+
+import { getPlanState, type PlanStateResponse } from '../lib/api.js'
+import { requireField } from '../lib/config.js'
 
 // ⚠️ pj-platform 의 lib/build-plan/constants.ts TDD_BYPASS_PHASES 와 동기 필수.
 // phase set 변경 시 양쪽 같이 업데이트. (cli 와 platform 의 drift 방지)
@@ -13,31 +13,7 @@ const TDD_BYPASS_PHASES = new Set<string>([
   'handoff',
 ])
 
-const WorkerTaskSchema = z.object({
-  id: z.string(),
-  client_id: z.string(),
-  phase_slug: z.string(),
-  group_key: z.string(),
-  domain: z.string().nullable(),
-  description: z.string(),
-  acceptance_criteria: z.string().nullable(),
-  test_file_path: z.string().nullable(),
-})
-
-const PlanSchema = z.object({
-  tasks: z.array(WorkerTaskSchema),
-})
-
-export interface WorkerTask {
-  id: string
-  client_id: string
-  phase_slug: string
-  group_key: string
-  domain: string | null
-  description: string
-  acceptance_criteria: string | null
-  test_file_path: string | null
-}
+export type WorkerTask = PlanStateResponse['groups'][number]['tasks'][number]
 
 export interface BuildWorkerPromptArgs {
   groupKey: string
@@ -78,7 +54,7 @@ export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
 
   const taskLines = tasks
     .map((t) => {
-      const ac = t.acceptance_criteria ?? '- (acceptance_criteria 없음)'
+      const ac = t.acceptance_criteria !== '' ? t.acceptance_criteria : '- (acceptance_criteria 없음)'
       const tf = t.test_file_path ? `\n   test_file_path: ${t.test_file_path}` : ''
       return `### ${t.client_id} (uuid: ${t.id})
 
@@ -129,41 +105,43 @@ ${tddSection}
 `
 }
 
+export interface WorkerPromptActionOpts {
+  group: string
+  phase: string
+  worktree: string
+}
+
+export async function workerPromptAction(opts: WorkerPromptActionOpts): Promise<string> {
+  const planId = await requireField('plan_id')
+  const state = await getPlanState(planId, opts.phase)
+  const group = state.groups.find((g) => g.group_key === opts.group)
+  if (!group || group.tasks.length === 0) {
+    throw new Error(`phase=${opts.phase} group=${opts.group} 의 task 없음`)
+  }
+  return buildWorkerPrompt({
+    groupKey: opts.group,
+    phaseSlug: opts.phase,
+    worktreePath: opts.worktree,
+    tasks: group.tasks,
+  })
+}
+
 export function workerCommand(program: Command): void {
   const worker = program.command('worker').description('worker subagent prompt 생성')
 
   worker
     .command('prompt')
-    .description('group / phase 별 worker subagent prompt 자동 생성 (.tokb/plan.json read)')
+    .description('group / phase 별 worker subagent prompt 자동 생성 (platform /state API)')
     .requiredOption('--group <groupKey>', 'group_key')
     .requiredOption('--phase <phaseSlug>', 'phase_slug')
     .requiredOption('--worktree <path>', 'worktree absolute path')
-    .action((opts: { group: string; phase: string; worktree: string }) => {
-      const planPath = path.join(process.cwd(), '.tokb', 'plan.json')
-      if (!existsSync(planPath)) {
-        console.error('✗ .tokb/plan.json 없음 — Phase 1 (tokb-generate-build-plan) 먼저 진행')
+    .action(async (opts: WorkerPromptActionOpts) => {
+      try {
+        const prompt = await workerPromptAction(opts)
+        process.stdout.write(prompt)
+      } catch (err) {
+        console.error('✗', err instanceof Error ? err.message : String(err))
         process.exit(1)
       }
-      const rawPlan: unknown = JSON.parse(readFileSync(planPath, 'utf-8'))
-      const parseResult = PlanSchema.safeParse(rawPlan)
-      if (!parseResult.success) {
-        console.error('✗ .tokb/plan.json schema 오류:', parseResult.error.message)
-        process.exit(1)
-      }
-      const plan = parseResult.data
-      const tasks = plan.tasks.filter(
-        (t) => t.phase_slug === opts.phase && t.group_key === opts.group,
-      )
-      if (tasks.length === 0) {
-        console.error(`✗ phase=${opts.phase} group=${opts.group} 의 task 없음`)
-        process.exit(1)
-      }
-      const prompt = buildWorkerPrompt({
-        groupKey: opts.group,
-        phaseSlug: opts.phase,
-        worktreePath: opts.worktree,
-        tasks,
-      })
-      process.stdout.write(prompt)
     })
 }
