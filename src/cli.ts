@@ -11,6 +11,7 @@ import { resumeCommand } from './commands/resume.js'
 import { initCommand } from './commands/init.js'
 import { groupCommand } from './commands/group.js'
 import { commitsCommand } from './commands/commits.js'
+import { worktreeCommand } from './commands/worktree.js'
 
 const require = createRequire(import.meta.url)
 const pkg = require('../package.json') as { version: string }
@@ -45,6 +46,7 @@ for (const register of [
   initCommand,
   groupCommand,
   commitsCommand,
+  worktreeCommand,
 ]) {
   register(program)
 }
