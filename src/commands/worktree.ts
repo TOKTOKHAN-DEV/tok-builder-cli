@@ -21,7 +21,21 @@ export async function worktreeCreate(opts: WorktreeCreateOpts): Promise<Worktree
     return { path: wtPath, branch }
   }
   mkdirSync(path.dirname(wtPath), { recursive: true })
-  execFileSync('git', ['worktree', 'add', '-b', branch, wtPath], { cwd, stdio: 'pipe' })
+
+  // branch 이미 존재 시 (옛 cleanup 했지만 branch 안 지움) — branch 사용 + worktree add (without -b)
+  let branchExists = false
+  try {
+    execFileSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd, stdio: 'pipe' })
+    branchExists = true
+  } catch {
+    // branch 없음 — -b 옵션으로 새로 생성
+  }
+
+  if (branchExists) {
+    execFileSync('git', ['worktree', 'add', wtPath, branch], { cwd, stdio: 'pipe' })
+  } else {
+    execFileSync('git', ['worktree', 'add', '-b', branch, wtPath], { cwd, stdio: 'pipe' })
+  }
   return { path: wtPath, branch }
 }
 
