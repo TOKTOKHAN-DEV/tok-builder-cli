@@ -1,6 +1,4 @@
 import { execSync } from 'node:child_process'
-import fs from 'node:fs'
-import path from 'node:path'
 
 export type PreflightResult = { ok: boolean; failures: string[] }
 
@@ -25,15 +23,6 @@ export function runPreflight(): PreflightResult {
 
   if (!tryCmd('git --version')) failures.push('git 설치 안 됨')
   if (!tryCmd('gh --version')) failures.push('gh CLI 설치 안 됨 — `brew install gh`')
-  if (process.env.PJ_REQUIRE_TMUX === '1' && !tryCmd('tmux -V')) {
-    failures.push('tmux 설치 안 됨 — `brew install tmux`')
-  }
-  if (process.env.PJ_REQUIRE_OMC === '1') {
-    const omcCacheDir = path.join(process.env.HOME ?? '', '.claude/plugins/cache/omc')
-    if (!fs.existsSync(omcCacheDir)) {
-      failures.push('OMC plugin 설치 안 됨 — Claude Code 안에서 `/plugin install oh-my-claudecode`')
-    }
-  }
 
   if (!tryCmd('gh auth status')) {
     failures.push('GitHub 로그인 안 됨. `gh auth login` 실행')
