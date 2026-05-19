@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { Command } from 'commander'
 import { getProjectState } from '../lib/api.js'
 import { requireField } from '../lib/config.js'
+import { assertValidGroupKey } from '../lib/group-key.js'
 
 export function filterGroupTasks<
   T extends { group_key: string | null; phase_slug: string },
@@ -21,6 +22,7 @@ export function groupCommand(program: Command): void {
     .description('group 의 모든 task 진행 상태 출력')
     .option('--phase <slug>', '특정 phase 로 범위 제한')
     .action(async (groupKey: string, opts: { phase?: string }) => {
+      assertValidGroupKey(groupKey)
       const projectId = await requireField('project_id')
       const state = await getProjectState(projectId)
       const groupTasks = filterGroupTasks(state.tasks, groupKey, opts.phase)
@@ -43,6 +45,7 @@ export function groupCommand(program: Command): void {
     .option('--dry-run', '실 실행 없이 조건 확인만')
     .option('--phase <slug>', '특정 phase 로 범위 제한')
     .action(async (groupKey: string, opts: { dryRun?: boolean; phase?: string }) => {
+      assertValidGroupKey(groupKey)
       const projectId = await requireField('project_id')
       const state = await getProjectState(projectId)
       const groupTasks = filterGroupTasks(state.tasks, groupKey, opts.phase)

@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
+import { assertValidGroupKey } from '../lib/group-key.js'
 
 export interface WorktreeCreateOpts {
   groupKey: string
@@ -14,6 +15,7 @@ export interface WorktreeCreateResult {
 }
 
 export async function worktreeCreate(opts: WorktreeCreateOpts): Promise<WorktreeCreateResult> {
+  assertValidGroupKey(opts.groupKey)
   const cwd = opts.cwd ?? process.cwd()
   const branch = `feat/${opts.groupKey}`
   const wtPath = path.join(cwd, '.tokb', 'worktrees', opts.groupKey)
@@ -45,6 +47,7 @@ export interface WorktreeCleanupOpts {
 }
 
 export async function worktreeCleanup(opts: WorktreeCleanupOpts): Promise<void> {
+  assertValidGroupKey(opts.groupKey)
   const cwd = opts.cwd ?? process.cwd()
   const wtPath = path.join(cwd, '.tokb', 'worktrees', opts.groupKey)
   if (!existsSync(wtPath)) return
