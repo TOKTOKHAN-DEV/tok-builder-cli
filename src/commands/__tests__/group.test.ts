@@ -139,6 +139,10 @@ describe('group complete', () => {
       run: null,
       tasks: allDoneTasks,
     })
+    // gh pr create 성공 시 stdout 에 PR URL 반환
+    vi.mocked(execFileSync)
+      .mockImplementationOnce(() => Buffer.from('')) // git push OK
+      .mockImplementationOnce(() => Buffer.from('https://github.com/example/repo/pull/123\n')) // gh pr create OK
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
     const program = makeProgram()
@@ -147,12 +151,13 @@ describe('group complete', () => {
     const calls = vi.mocked(execFileSync).mock.calls
     // 첫 번째 호출: git push -u origin feat/auth
     expect(calls[0]).toEqual(['git', ['push', '-u', 'origin', 'feat/auth'], { stdio: 'inherit' }])
-    // 두 번째 호출: gh pr create
+    // 두 번째 호출: gh pr create (stdio: 'pipe')
     expect(calls[1][0]).toBe('gh')
     expect(calls[1][1]).toContain('pr')
     expect(calls[1][1]).toContain('create')
     expect(calls[1][1]).toContain('feat/auth')
     expect(calls[1][1]).toContain('feat(auth): group complete')
+    expect(calls[1][2]).toMatchObject({ stdio: 'pipe' })
 
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('PR 생성 완료'))
     consoleSpy.mockRestore()
@@ -164,10 +169,14 @@ describe('group complete', () => {
       run: null,
       tasks: allDoneTasks,
     })
-    // git push 성공, gh pr create 는 already exists 에러
+    // git push 성공, gh pr create 는 already exists 에러 (stdio: 'pipe' 이므로 e.stderr 에 stderr 박힘)
     vi.mocked(execFileSync)
       .mockImplementationOnce(() => Buffer.from('')) // git push OK
-      .mockImplementationOnce(() => { throw new Error('already exists') }) // gh pr create
+      .mockImplementationOnce(() => {
+        const err = new Error('Command failed: gh pr create ...') as Error & { stderr?: Buffer }
+        err.stderr = Buffer.from("a pull request for branch 'feat/auth' already exists")
+        throw err
+      }) // gh pr create — already exists
 
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 

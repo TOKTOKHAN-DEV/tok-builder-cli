@@ -81,7 +81,7 @@ export function groupCommand(program: Command): void {
       // 2) gh pr create
       const title = `feat(${groupKey}): group complete`
       try {
-        execFileSync(
+        const out = execFileSync(
           'gh',
           [
             'pr',
@@ -95,12 +95,14 @@ export function groupCommand(program: Command): void {
             '--body',
             `group '${groupKey}' 모든 task done. 자동 PR.`,
           ],
-          { stdio: 'inherit' },
+          { stdio: 'pipe' },
         )
-        console.log(`✓ PR 생성 완료 (group: ${groupKey})`)
+        const url = out.toString().trim()
+        console.log(`✓ PR 생성 완료 (group: ${groupKey})${url ? ` — ${url}` : ''}`)
       } catch (e) {
-        // PR 이미 존재하는 경우 (예: 재 호출) — gh pr create 가 fail. 그래도 group complete 자체는 OK 처리.
-        const msg = e instanceof Error ? e.message : String(e)
+        // stdio: 'pipe' 라 e.stderr 에 stderr 내용 박힘
+        const stderr = (e as NodeJS.ErrnoException & { stderr?: Buffer }).stderr?.toString() ?? ''
+        const msg = stderr || (e instanceof Error ? e.message : String(e))
         if (msg.includes('already exists')) {
           console.log(`PR already exists for ${branch} — skip`)
         } else {
