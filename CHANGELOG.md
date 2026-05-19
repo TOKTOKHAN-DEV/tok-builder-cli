@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0] - 2026-05-19
+
+### Added
+- `tokb group complete <group_key>` — 모든 task done 검증 후 자동 `git push -u origin feat/<group_key>` + `gh pr create --base main` 호출. PR 이미 존재 시 (`already exists` stderr 검출) skip 처리. `--dry-run` / `--phase <slug>` 옵션 (QA #5)
+
+### Fixed
+- `tokb worktree create <group_key>` — `feat/<group_key>` branch 이미 존재 시 `-b` 없이 `git worktree add` 호출. 옛 cleanup 후 branch 잔존 케이스 처리 (QA #6)
+- `gh pr create` 의 `stdio: 'pipe'` 사용 — `e.stderr` 로 `already exists` 분기 정상 동작 (code review)
+
+### Removed
+- `preflight.ts` 의 `PJ_REQUIRE_TMUX` / `PJ_REQUIRE_OMC` env 검사 — 직접 harness 전환 후 omc plugin 의존 0 (QA #11)
+
 ## [0.6.1] - 2026-05-15
 
 ### Changed
