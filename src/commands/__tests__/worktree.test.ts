@@ -39,6 +39,26 @@ describe('tokb worktree create', () => {
     expect(result2.path).toBe(path.join(repo, '.tokb', 'worktrees', 'users'))
     expect(result2.branch).toBe('feat/users')
   })
+
+  it('branch 는 존재하지만 worktree 는 없는 경우 (옛 cleanup 잔존) — -b 없이 worktree add 성공', async () => {
+    // worktree 생성 후 cleanup (worktree 제거, branch 유지)
+    await worktreeCreate({ groupKey: 'payments', cwd: repo })
+    await worktreeCleanup({ groupKey: 'payments', cwd: repo })
+
+    // branch 가 살아 있는지 확인
+    const branches = execSync('git branch', { cwd: repo }).toString()
+    expect(branches).toContain('feat/payments')
+
+    // worktree 경로는 없어야 함
+    const wtPath = path.join(repo, '.tokb', 'worktrees', 'payments')
+    expect(existsSync(wtPath)).toBe(false)
+
+    // 재생성 — -b 없이 기존 branch 로 worktree add 돼야 함
+    const result = await worktreeCreate({ groupKey: 'payments', cwd: repo })
+    expect(result.path).toBe(wtPath)
+    expect(result.branch).toBe('feat/payments')
+    expect(existsSync(wtPath)).toBe(true)
+  })
 })
 
 describe('tokb worktree cleanup', () => {
