@@ -1,5 +1,21 @@
-import { describe, it, expect } from 'vitest';
-import { filterGroupTasks } from '../group';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { filterGroupTasks, groupCommand } from '../group';
+import { Command } from 'commander';
+
+// node:child_process, config, api mock
+vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(),
+}))
+vi.mock('../../lib/config.js', () => ({
+  requireField: vi.fn(),
+}))
+vi.mock('../../lib/api.js', () => ({
+  getProjectState: vi.fn(),
+}))
+
+import { execFileSync } from 'node:child_process'
+import { requireField } from '../../lib/config.js'
+import { getProjectState } from '../../lib/api.js'
 
 const fakeTasks = [
   { id: 't1', group_key: 'auth', phase_slug: 'design-spec', status: 'pending' as const },
@@ -36,4 +52,132 @@ describe('filterGroupTasks', () => {
     const result = filterGroupTasks(fakeTasks, 'auth', '');
     expect(result).toEqual([]);
   });
+});
+
+// complete 서브커맨드 통합 테스트
+function makeProgram() {
+  const program = new Command()
+  program.exitOverride() // process.exit 대신 throw
+  groupCommand(program)
+  return program
+}
+
+const allDoneTasks = [
+  { id: 't1', group_key: 'auth', phase_slug: 'design-spec', status: 'done' as const, title: 'task1', domain: null, group_type: null },
+  { id: 't2', group_key: 'auth', phase_slug: 'core-impl', status: 'done' as const, title: 'task2', domain: null, group_type: null },
+]
+
+const pendingTasks = [
+  { id: 't1', group_key: 'auth', phase_slug: 'design-spec', status: 'done' as const, title: 'task1', domain: null, group_type: null },
+  { id: 't2', group_key: 'auth', phase_slug: 'core-impl', status: 'pending' as const, title: 'task2', domain: null, group_type: null },
+]
+
+describe('group complete', () => {
+  beforeEach(() => {
+    vi.mocked(requireField).mockResolvedValue('project-uuid-1' as never)
+    vi.mocked(execFileSync).mockReset()
+    vi.mocked(getProjectState).mockReset()
+  })
+
+  it('--dry-run: 모든 task done → push/pr create 호출 X + skip 메시지', async () => {
+    vi.mocked(getProjectState).mockResolvedValue({
+      plan: null,
+      run: null,
+      tasks: allDoneTasks,
+    })
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const program = makeProgram()
+    await program.parseAsync(['group', 'complete', 'auth', '--dry-run'], { from: 'user' })
+
+    expect(vi.mocked(execFileSync)).not.toHaveBeenCalled()
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('--dry-run'))
+    consoleSpy.mockRestore()
+  })
+
+  it('미완료 task 존재 시 process.exit(1) + 미완료 목록 출력', async () => {
+    vi.mocked(getProjectState).mockResolvedValue({
+      plan: null,
+      run: null,
+      tasks: pendingTasks,
+    })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((_code?: number | string | null) => { throw new Error('process.exit') })
+
+    const program = makeProgram()
+    await expect(
+      program.parseAsync(['group', 'complete', 'auth'], { from: 'user' })
+    ).rejects.toThrow()
+
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('미완료 task'))
+    exitSpy.mockRestore()
+    errSpy.mockRestore()
+  })
+
+  it('task 없는 group — process.exit(1)', async () => {
+    vi.mocked(getProjectState).mockResolvedValue({
+      plan: null,
+      run: null,
+      tasks: [],
+    })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((_code?: number | string | null) => { throw new Error('process.exit') })
+
+    const program = makeProgram()
+    await expect(
+      program.parseAsync(['group', 'complete', 'auth'], { from: 'user' })
+    ).rejects.toThrow()
+
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("group 'auth' 의 task 없음"))
+    exitSpy.mockRestore()
+    errSpy.mockRestore()
+  })
+
+  it('happy path: 모든 task done → git push + gh pr create 순서대로 호출', async () => {
+    vi.mocked(getProjectState).mockResolvedValue({
+      plan: null,
+      run: null,
+      tasks: allDoneTasks,
+    })
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const program = makeProgram()
+    await program.parseAsync(['group', 'complete', 'auth'], { from: 'user' })
+
+    const calls = vi.mocked(execFileSync).mock.calls
+    // 첫 번째 호출: git push -u origin feat/auth
+    expect(calls[0]).toEqual(['git', ['push', '-u', 'origin', 'feat/auth'], { stdio: 'inherit' }])
+    // 두 번째 호출: gh pr create
+    expect(calls[1][0]).toBe('gh')
+    expect(calls[1][1]).toContain('pr')
+    expect(calls[1][1]).toContain('create')
+    expect(calls[1][1]).toContain('feat/auth')
+    expect(calls[1][1]).toContain('feat(auth): group complete')
+
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('PR 생성 완료'))
+    consoleSpy.mockRestore()
+  })
+
+  it('PR already exists — skip 처리 (process.exit 없음)', async () => {
+    vi.mocked(getProjectState).mockResolvedValue({
+      plan: null,
+      run: null,
+      tasks: allDoneTasks,
+    })
+    // git push 성공, gh pr create 는 already exists 에러
+    vi.mocked(execFileSync)
+      .mockImplementationOnce(() => Buffer.from('')) // git push OK
+      .mockImplementationOnce(() => { throw new Error('already exists') }) // gh pr create
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const program = makeProgram()
+    // process.exit 없이 정상 종료 기대
+    await expect(
+      program.parseAsync(['group', 'complete', 'auth'], { from: 'user' })
+    ).resolves.toBeDefined()
+
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('PR already exists'))
+    consoleSpy.mockRestore()
+  })
 });

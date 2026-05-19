@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { Command } from 'commander'
 import { getProjectState } from '../lib/api.js'
 import { requireField } from '../lib/config.js'
@@ -60,15 +61,52 @@ export function groupCommand(program: Command): void {
         process.exit(1)
       }
 
-      console.log(`group '${groupKey}' 모든 task done. PR 생성 trigger 진입.`)
+      console.log(`group '${groupKey}' 모든 task done. PR 생성 진입.`)
 
       if (opts.dryRun) {
         console.log('--dry-run: 실 PR 생성 skip')
         return
       }
 
-      // v1: PR 생성은 omc 가 gh CLI 로 자율 진행. cli 는 검증만.
-      // v1.x: cli 가 직접 gh API 호출 (별도 PR 로 추가)
-      console.log('다음 step: omc 가 gh pr create 호출 (또는 cli v1.x 자동화)')
+      const branch = `feat/${groupKey}`
+
+      // 1) push (이미 push 된 경우 no-op)
+      try {
+        execFileSync('git', ['push', '-u', 'origin', branch], { stdio: 'inherit' })
+      } catch (e) {
+        console.error(`git push fail: ${e instanceof Error ? e.message : String(e)}`)
+        process.exit(1)
+      }
+
+      // 2) gh pr create
+      const title = `feat(${groupKey}): group complete`
+      try {
+        execFileSync(
+          'gh',
+          [
+            'pr',
+            'create',
+            '--base',
+            'main',
+            '--head',
+            branch,
+            '--title',
+            title,
+            '--body',
+            `group '${groupKey}' 모든 task done. 자동 PR.`,
+          ],
+          { stdio: 'inherit' },
+        )
+        console.log(`✓ PR 생성 완료 (group: ${groupKey})`)
+      } catch (e) {
+        // PR 이미 존재하는 경우 (예: 재 호출) — gh pr create 가 fail. 그래도 group complete 자체는 OK 처리.
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('already exists')) {
+          console.log(`PR already exists for ${branch} — skip`)
+        } else {
+          console.error(`gh pr create fail: ${msg}`)
+          process.exit(1)
+        }
+      }
     })
 }
