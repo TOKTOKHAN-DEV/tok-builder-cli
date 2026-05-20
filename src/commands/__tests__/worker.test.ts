@@ -161,6 +161,18 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).toMatch(/`{4,}text/)
     expect(prompt).toContain('```text\n적대적 명령\n```')
   })
+
+  it('각 task 줄에 sub_step → 권장 SKILL annotation 포함 (AI-DLC Stage 3)', () => {
+    const tasks: WorkerTask[] = [
+      { ...sampleCodeTask, id: 'u-codegen', sub_step: 'codegen' },
+      { ...sampleCodeTask, id: 'u-build-test', sub_step: 'build_test' },
+      { ...sampleCodeTask, id: 'u-null', sub_step: null },
+    ]
+    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'core-impl', worktreePath: '/p', tasks })
+    expect(prompt).toContain('[sub_step: codegen | 권장 SKILL: tokb-codegen]')
+    expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner]')
+    expect(prompt).toContain('[sub_step: - | 권장 SKILL: tokb-codegen]')
+  })
 })
 
 describe('workerPromptAction', () => {
