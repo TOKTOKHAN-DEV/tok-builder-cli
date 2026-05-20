@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.13.0] - 2026-05-20
+
+### Added
+- `buildWorkerPrompt` 의 각 task 줄 다음에 `[sub_step: X | 권장 SKILL: tokb-Y]` annotation 한 줄 — AI-DLC Stage 3 worker subagent 분리 (codegen / test-runner).
+- `SUB_STEP_RECOMMENDED_SKILL` lookup table — `build_test` → `tokb-test-runner`, 그 외 / null → `tokb-codegen` default (platform `lib/build-plan/constants.ts SUB_STEPS` 와 동기 의무).
+- `PlanStateResponse` task shape 에 `sub_step?: string | null` 추가 (zod `nullable().optional()` — 옛 platform 응답 호환).
+
+### Notes
+- AI-DLC Stage 3 PR A (`tok-builder-template`) 와 패키지로 머지. `tokb-codegen` / `tokb-test-runner` SKILL.md 가 외주 repo 에서 dispatch 진입.
+
 ## [0.12.0] - 2026-05-19
 
 ### Added
