@@ -17,10 +17,31 @@ const TDD_BYPASS_PHASES = new Set<string>([
 // SoT: tok-builder-template/.claude/skills/tokb-core-workflow.md 의 dispatcher 표.
 // pj-platform lib/build-plan/constants.ts SUB_STEPS 변경 시 본 표 + dispatcher 표 동시 갱신 (4 SSOT 룰).
 // sub_step 은 platform 에서 새 값 추가 가능 — 본 매핑 없으면 DEFAULT_RECOMMENDED_SKILL fallback.
-const SUB_STEP_RECOMMENDED_SKILL: Record<string, string> = {
+// Object.create(null) — prototype pollution 방어 (constructor / __proto__ 키 lookup 차단).
+const SUB_STEP_RECOMMENDED_SKILL: Record<string, string> = Object.assign(Object.create(null), {
   build_test: 'tokb-test-runner',
-}
+})
 const DEFAULT_RECOMMENDED_SKILL = 'tokb-codegen'
+
+// sub_step 값이 platform 응답에서 통제 불가 — newline / 닫는 bracket 등이 박혀
+// prompt 의 header 영역 (data fence 밖) 으로 누출되면 instruction injection 가능.
+// allow-list 패턴 (lowercase / underscore / digit) 만 통과, 그 외는 'invalid' 로 sanitize.
+// prototype key 도 blocklist — 본래 값이 그대로 prompt 에 박히지 않도록.
+const SUB_STEP_BLOCKLIST = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+  'hasOwnProperty',
+  'toString',
+  'valueOf',
+])
+function sanitizeSubStep(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null
+  if (typeof raw !== 'string') return 'invalid'
+  if (!/^[a-z0-9_]+$/.test(raw)) return 'invalid'
+  if (SUB_STEP_BLOCKLIST.has(raw)) return 'invalid'
+  return raw
+}
 
 export type WorkerTask = PlanStateResponse['groups'][number]['tasks'][number]
 
@@ -75,7 +96,7 @@ export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
       const tf = t.test_file_path ? `\n   test_file_path: ${t.test_file_path}` : ''
       const body = `${t.description}${tf}\n\nacceptance_criteria:\n${ac}`
       const fence = '`'.repeat(computeFenceLength(body))
-      const subStep = t.sub_step ?? null
+      const subStep = sanitizeSubStep(t.sub_step)
       const recommendedSkill =
         (subStep && SUB_STEP_RECOMMENDED_SKILL[subStep]) ?? DEFAULT_RECOMMENDED_SKILL
       const subStepLine = `[sub_step: ${subStep ?? '-'} | 권장 SKILL: ${recommendedSkill}]`
