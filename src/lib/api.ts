@@ -120,6 +120,7 @@ export type PlanStateResponse = {
       commit_sha_test: string | null
       commit_sha_code: string | null
       evidence_note: string | null
+      sub_step?: string | null
     }>
   }>
 }
@@ -135,6 +136,7 @@ const PlanStateTaskShape = z.looseObject({
   description: z.string(),
   acceptance_criteria: z.string(),
   test_file_path: z.string().nullable(),
+  sub_step: z.string().nullable().optional(),
 })
 
 const PlanStateGroupShape = z.looseObject({

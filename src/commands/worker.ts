@@ -66,7 +66,11 @@ export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
       const tf = t.test_file_path ? `\n   test_file_path: ${t.test_file_path}` : ''
       const body = `${t.description}${tf}\n\nacceptance_criteria:\n${ac}`
       const fence = '`'.repeat(computeFenceLength(body))
+      const subStep = t.sub_step ?? null
+      const recommendedSkill = subStep === 'build_test' ? 'tokb-test-runner' : 'tokb-codegen'
+      const subStepLine = `[sub_step: ${subStep ?? '-'} | 권장 SKILL: ${recommendedSkill}]`
       return `### ${t.client_id} (uuid: ${t.id})
+${subStepLine}
 
 ${fence}text
 ${body}
