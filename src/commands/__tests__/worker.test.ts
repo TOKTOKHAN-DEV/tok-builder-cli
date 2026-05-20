@@ -167,11 +167,15 @@ describe('buildWorkerPrompt', () => {
       { ...sampleCodeTask, id: 'u-codegen', sub_step: 'codegen' },
       { ...sampleCodeTask, id: 'u-build-test', sub_step: 'build_test' },
       { ...sampleCodeTask, id: 'u-null', sub_step: null },
+      { ...sampleCodeTask, id: 'u-functional', sub_step: 'functional' },
+      { ...sampleCodeTask, id: 'u-unknown', sub_step: 'unknown_xyz' },
     ]
     const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'core-impl', worktreePath: '/p', tasks })
     expect(prompt).toContain('[sub_step: codegen | 권장 SKILL: tokb-codegen]')
     expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner]')
     expect(prompt).toContain('[sub_step: - | 권장 SKILL: tokb-codegen]')
+    expect(prompt).toContain('[sub_step: functional | 권장 SKILL: tokb-codegen]')
+    expect(prompt).toContain('[sub_step: unknown_xyz | 권장 SKILL: tokb-codegen]')
   })
 })
 
