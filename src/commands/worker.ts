@@ -13,6 +13,15 @@ const TDD_BYPASS_PHASES = new Set<string>([
   'handoff',
 ])
 
+// ⚠️ AI-DLC Stage 3 — sub_step → 권장 worker SKILL 매핑.
+// SoT: tok-builder-template/.claude/skills/tokb-core-workflow.md 의 dispatcher 표.
+// pj-platform lib/build-plan/constants.ts SUB_STEPS 변경 시 본 표 + dispatcher 표 동시 갱신 (4 SSOT 룰).
+// sub_step 은 platform 에서 새 값 추가 가능 — 본 매핑 없으면 DEFAULT_RECOMMENDED_SKILL fallback.
+const SUB_STEP_RECOMMENDED_SKILL: Record<string, string> = {
+  build_test: 'tokb-test-runner',
+}
+const DEFAULT_RECOMMENDED_SKILL = 'tokb-codegen'
+
 export type WorkerTask = PlanStateResponse['groups'][number]['tasks'][number]
 
 // markdown fence delimiter 동적 계산 — content 안에 ` 가 박혀있어도 outer fence 가 깨지지 않게.
@@ -67,7 +76,8 @@ export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
       const body = `${t.description}${tf}\n\nacceptance_criteria:\n${ac}`
       const fence = '`'.repeat(computeFenceLength(body))
       const subStep = t.sub_step ?? null
-      const recommendedSkill = subStep === 'build_test' ? 'tokb-test-runner' : 'tokb-codegen'
+      const recommendedSkill =
+        (subStep && SUB_STEP_RECOMMENDED_SKILL[subStep]) ?? DEFAULT_RECOMMENDED_SKILL
       const subStepLine = `[sub_step: ${subStep ?? '-'} | 권장 SKILL: ${recommendedSkill}]`
       return `### ${t.client_id} (uuid: ${t.id})
 ${subStepLine}
