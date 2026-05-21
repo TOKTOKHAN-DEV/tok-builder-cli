@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.14.0] - 2026-05-21
+
+### Added
+- `tokb group complete` 가 PR 생성 후 자동 머지 (`gh pr merge --squash --delete-branch`) — 비개발자 build 담당자가 PR 검증 / 머지 부담 X. PR 새로 생성된 경우만 머지 (already exists 케이스는 머지 건너뜀). 머지 실패 시 exit X (PR 자체는 만들어졌으니 수동 fallback 가능).
+
 ## [0.13.0] - 2026-05-20
 
 ### Added

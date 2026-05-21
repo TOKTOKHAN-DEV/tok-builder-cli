@@ -83,6 +83,7 @@ export function groupCommand(program: Command): void {
 
       // 2) gh pr create
       const title = `feat(${groupKey}): group complete`
+      let prCreatedNow = false
       try {
         const out = execFileSync(
           'gh',
@@ -102,6 +103,7 @@ export function groupCommand(program: Command): void {
         )
         const url = out.toString().trim()
         console.log(`✓ PR 생성 완료 (group: ${groupKey})${url ? ` — ${url}` : ''}`)
+        prCreatedNow = true
       } catch (e) {
         // stdio: 'pipe' 라 e.stderr 에 stderr 내용 박힘
         const stderr = (e as NodeJS.ErrnoException & { stderr?: Buffer }).stderr?.toString() ?? ''
@@ -111,6 +113,23 @@ export function groupCommand(program: Command): void {
         } else {
           console.error(`gh pr create fail: ${msg}`)
           process.exit(1)
+        }
+      }
+
+      // 3) gh pr merge --squash --delete-branch — 비개발자 친화 자동 머지 (PR 생성 직후만)
+      // PR already exists 케이스에서는 사용자가 이미 봤거나 다른 흐름이라 자동 머지 안 함.
+      if (prCreatedNow) {
+        try {
+          execFileSync(
+            'gh',
+            ['pr', 'merge', branch, '--squash', '--delete-branch'],
+            { stdio: 'inherit' },
+          )
+          console.log(`✓ PR 자동 머지 완료 (squash, branch 삭제) — group: ${groupKey}`)
+        } catch (e) {
+          // 머지 실패 = PR 자체는 만들어져 있으니 사용자가 직접 처리 가능. exit X.
+          const msg = e instanceof Error ? e.message : String(e)
+          console.warn(`자동 머지 실패 (PR 자체는 생성됨, 수동 머지 필요): ${msg}`)
         }
       }
     })
