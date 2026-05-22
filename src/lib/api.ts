@@ -121,6 +121,8 @@ export type PlanStateResponse = {
       commit_sha_code: string | null
       evidence_note: string | null
       sub_step?: string | null
+      output_artifacts?: Array<{ path: string; kind: 'spec' | 'code' | 'doc' | 'config' | 'test' | 'other' }> | null
+      depends_on_client_ids?: string[] | null
     }>
   }>
 }
@@ -137,6 +139,11 @@ const PlanStateTaskShape = z.looseObject({
   acceptance_criteria: z.string(),
   test_file_path: z.string().nullable(),
   sub_step: z.string().nullable().optional(),
+  output_artifacts: z.array(z.object({
+    path: z.string(),
+    kind: z.enum(['spec', 'code', 'doc', 'config', 'test', 'other']),
+  }).loose()).nullable().optional(),
+  depends_on_client_ids: z.array(z.string()).nullable().optional(),
 })
 
 const PlanStateGroupShape = z.looseObject({
