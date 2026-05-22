@@ -1,5 +1,11 @@
+import { execSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
 import { describe, it, expect } from 'vitest'
-import { computeNextWave, validateDisjoint, type WaveTask } from '../wave'
+
+import { computeNextWave, validateDisjoint, mergeWave, type WaveTask } from '../wave'
 
 const baseTask: Omit<WaveTask, 'client_id' | 'status' | 'depends_on_client_ids' | 'output_artifacts'> = {
   id: 'uuid-x',
@@ -133,5 +139,95 @@ describe('validateDisjoint', () => {
       ],
     })
     expect(result.ok).toBe(true)
+  })
+})
+
+function initBareRepoWithBranches(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'tokb-wave-merge-test-'))
+  execSync('git init -q -b main', { cwd: dir })
+  execSync('git config user.email test@x.com', { cwd: dir })
+  execSync('git config user.name test', { cwd: dir })
+  // main 의 init commit
+  writeFileSync(path.join(dir, 'README.md'), '# init\n')
+  execSync('git add README.md', { cwd: dir })
+  execSync('git commit -m init -q', { cwd: dir })
+  // feat/<gk>-group (group branch, base) 생성. 본 test 에선 group_key=auth.
+  execSync('git checkout -b feat/auth-group -q', { cwd: dir })
+  execSync('git checkout main -q', { cwd: dir })
+  return dir
+}
+
+function commitTaskWork(repo: string, branchName: string, files: { path: string; content: string }[], message: string): string {
+  execSync(`git checkout ${branchName} -q`, { cwd: repo })
+  for (const f of files) {
+    const full = path.join(repo, f.path)
+    mkdirSync(path.dirname(full), { recursive: true })
+    writeFileSync(full, f.content)
+  }
+  execSync('git add -A', { cwd: repo })
+  execSync(`git commit -m "${message}" -q`, { cwd: repo })
+  return execSync('git rev-parse HEAD', { cwd: repo }).toString().trim()
+}
+
+describe('mergeWave', () => {
+  it('빈 task list — no-op + merged_commits=0', async () => {
+    const repo = initBareRepoWithBranches()
+    try {
+      const result = await mergeWave({ groupKey: 'auth', taskClientIds: [], cwd: repo })
+      expect(result.merged_commits).toBe(0)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  it('disjoint 한 2 task — cherry-pick 성공', async () => {
+    const repo = initBareRepoWithBranches()
+    try {
+      // feat/auth/T-001 — file a.ts 박음 (base feat/auth-group)
+      execSync('git checkout -b feat/auth/T-001 feat/auth-group -q', { cwd: repo })
+      commitTaskWork(repo, 'feat/auth/T-001', [{ path: 'a.ts', content: 'a' }], 'feat(T-001)')
+
+      // feat/auth/T-002 — file b.ts 박음
+      execSync('git checkout -b feat/auth/T-002 feat/auth-group -q', { cwd: repo })
+      commitTaskWork(repo, 'feat/auth/T-002', [{ path: 'b.ts', content: 'b' }], 'feat(T-002)')
+
+      // feat/auth-group 로 cherry-pick
+      const result = await mergeWave({
+        groupKey: 'auth',
+        taskClientIds: ['T-001', 'T-002'],
+        cwd: repo,
+      })
+
+      expect(result.merged_commits).toBe(2)
+
+      // feat/auth-group 에 a.ts + b.ts 둘 다 있어야 함
+      execSync('git checkout feat/auth-group -q', { cwd: repo })
+      expect(existsSync(path.join(repo, 'a.ts'))).toBe(true)
+      expect(existsSync(path.join(repo, 'b.ts'))).toBe(true)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  it('cherry-pick 충돌 — abort + throw + 명확한 보고', async () => {
+    const repo = initBareRepoWithBranches()
+    try {
+      // 두 task 가 같은 file 변경 (충돌 시나리오 — validate-disjoint 누락 케이스)
+      execSync('git checkout -b feat/auth/T-001 feat/auth-group -q', { cwd: repo })
+      commitTaskWork(repo, 'feat/auth/T-001', [{ path: 'shared.ts', content: 'A version\n' }], 'feat(T-001)')
+
+      execSync('git checkout -b feat/auth/T-002 feat/auth-group -q', { cwd: repo })
+      commitTaskWork(repo, 'feat/auth/T-002', [{ path: 'shared.ts', content: 'B version\n' }], 'feat(T-002)')
+
+      await expect(
+        mergeWave({ groupKey: 'auth', taskClientIds: ['T-001', 'T-002'], cwd: repo })
+      ).rejects.toThrow(/cherry-pick conflict|충돌/)
+
+      // cherry-pick state 정리됐는지 (abort 됐는지) — feat/auth-group 의 HEAD 가 cherry-pick 중 아니어야 함
+      const status = execSync('git status', { cwd: repo }).toString()
+      expect(status).not.toMatch(/cherry-pick in progress/i)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
   })
 })

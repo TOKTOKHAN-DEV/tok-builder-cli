@@ -98,4 +98,75 @@ export function validateDisjoint(input: ValidateDisjointInput): ValidateDisjoint
   return { ok: conflicts.length === 0, conflicts }
 }
 
+import { execFileSync } from 'node:child_process'
+
+import { assertValidGroupKey } from '../lib/group-key.js'
+import { assertValidTaskClientId } from '../lib/task-key.js'
+
+export interface MergeWaveOpts {
+  groupKey: string
+  taskClientIds: string[]
+  cwd?: string
+}
+
+export interface MergeWaveResult {
+  merged_commits: number
+}
+
+/**
+ * task branch 들의 feat/<gk>-group 이후 commits 을 group branch (feat/<gk>-group) 로 cherry-pick.
+ * task_client_id 순으로 정렬 후 순차 cherry-pick.
+ * 충돌 시 abort + throw + 명확한 보고.
+ */
+export async function mergeWave(opts: MergeWaveOpts): Promise<MergeWaveResult> {
+  assertValidGroupKey(opts.groupKey)
+  for (const id of opts.taskClientIds) {
+    assertValidTaskClientId(id)
+  }
+
+  const cwd = opts.cwd ?? process.cwd()
+  const groupBranch = `feat/${opts.groupKey}-group`
+
+  if (opts.taskClientIds.length === 0) {
+    return { merged_commits: 0 }
+  }
+
+  // group branch 로 checkout
+  execFileSync('git', ['checkout', groupBranch, '-q'], { cwd, stdio: 'pipe' })
+
+  const sortedIds = [...opts.taskClientIds].sort()
+  let mergedCommits = 0
+
+  for (const taskId of sortedIds) {
+    const taskBranch = `feat/${opts.groupKey}/${taskId}`
+    // task branch 의 group branch 이후 commits
+    const commitsOut = execFileSync(
+      'git',
+      ['log', '--format=%H', '--reverse', `${groupBranch}..${taskBranch}`],
+      { cwd, stdio: 'pipe' },
+    ).toString()
+    const commits = commitsOut.split('\n').filter(Boolean)
+
+    for (const sha of commits) {
+      try {
+        execFileSync('git', ['cherry-pick', sha], { cwd, stdio: 'pipe' })
+        mergedCommits++
+      } catch (e) {
+        // abort + throw
+        try {
+          execFileSync('git', ['cherry-pick', '--abort'], { cwd, stdio: 'pipe' })
+        } catch {
+          // abort 자체 실패 — 무시
+        }
+        const msg = e instanceof Error ? e.message : String(e)
+        throw new Error(
+          `cherry-pick conflict — task ${taskId} commit ${sha.slice(0, 7)} 충돌. file disjoint 룰 위반 가능성 (validate-disjoint 사전 호출 권장). ${msg}`,
+        )
+      }
+    }
+  }
+
+  return { merged_commits: mergedCommits }
+}
+
 // commander 등록은 Task 14 에서.
