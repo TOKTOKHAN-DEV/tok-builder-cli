@@ -80,7 +80,7 @@ export async function worktreeCreateTask(
     return { path: wtPath, branch }
   }
 
-  // base branch (feat/<groupKey>) 존재 검증
+  // base branch (feat/<groupKey>-group) 존재 검증
   try {
     execFileSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${baseBranch}`], {
       cwd,
@@ -137,7 +137,7 @@ export function worktreeCommand(program: Command): void {
   const wt = program.command('worktree').description('group 별 git worktree 관리')
 
   wt.command('create <groupKey>')
-    .description('group_key 별 worktree 생성 (.tokb/worktrees/<group_key>/ + feat/<group_key> branch)')
+    .description('group_key 별 worktree 생성 (.tokb/worktrees/<group_key>/ + feat/<group_key>-group branch)')
     .action(async (groupKey: string) => {
       const result = await worktreeCreate({ groupKey })
       console.log(`✓ worktree 생성: ${result.path}`)
