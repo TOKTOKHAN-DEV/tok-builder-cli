@@ -80,6 +80,22 @@ describe('computeNextWave', () => {
     const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
     expect(result.tasks).toEqual([])
   })
+
+  it('빈 wave (모두 done) — wave_index = -1', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', status: 'done', depends_on_client_ids: [], output_artifacts: [] },
+    ]
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    expect(result.wave_index).toBe(-1)
+  })
+
+  it('candidates 존재 — wave_index 양수', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
+    ]
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    expect(result.wave_index).toBeGreaterThan(0)
+  })
 })
 
 describe('validateDisjoint', () => {
