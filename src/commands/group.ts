@@ -71,7 +71,7 @@ export function groupCommand(program: Command): void {
         return
       }
 
-      const branch = `feat/${groupKey}`
+      const branch = `feat/${groupKey}-group`
 
       // 1) push (이미 push 된 경우 no-op)
       try {

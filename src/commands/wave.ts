@@ -100,6 +100,10 @@ export function validateDisjoint(input: ValidateDisjointInput): ValidateDisjoint
 
 import { execFileSync } from 'node:child_process'
 
+import { Command } from 'commander'
+
+import { getPlanState } from '../lib/api.js'
+import { requireField } from '../lib/config.js'
 import { assertValidGroupKey } from '../lib/group-key.js'
 import { assertValidTaskClientId } from '../lib/task-key.js'
 
@@ -169,4 +173,93 @@ export async function mergeWave(opts: MergeWaveOpts): Promise<MergeWaveResult> {
   return { merged_commits: mergedCommits }
 }
 
-// commander 등록은 Task 14 에서.
+export function waveCommand(program: Command): void {
+  const wave = program.command('wave').description('wave 단위 task 병렬 dispatch 보조 명령 (AI-DLC Stage A)')
+
+  wave
+    .command('next')
+    .description('다음 wave 의 task list (depends_on 그래프 topological — JSON 출력)')
+    .requiredOption('--phase <phaseSlug>', 'phase_slug')
+    .requiredOption('--group <groupKey>', 'group_key')
+    .action(async (opts: { phase: string; group: string }) => {
+      assertValidGroupKey(opts.group)
+      const planId = await requireField('plan_id')
+      const state = await getPlanState(planId, opts.phase)
+      const allTasks: WaveTask[] = []
+      for (const g of state.groups) {
+        for (const t of g.tasks) {
+          allTasks.push({
+            id: t.id,
+            client_id: t.client_id,
+            phase_slug: t.phase_slug,
+            group_key: t.group_key,
+            description: t.description,
+            acceptance_criteria: t.acceptance_criteria,
+            test_file_path: t.test_file_path,
+            status: t.status,
+            depends_on_client_ids: t.depends_on_client_ids,
+            output_artifacts: t.output_artifacts,
+          })
+        }
+      }
+      const result = computeNextWave({ tasks: allTasks, groupKey: opts.group, phaseSlug: opts.phase })
+      console.log(JSON.stringify(result, null, 2))
+    })
+
+  wave
+    .command('validate-disjoint')
+    .description('wave 안 task 들의 output_artifacts pairwise intersection 검증 (충돌 시 exit 1)')
+    .requiredOption('--tasks <ids>', '쉼표 분리 task client_id 들 (예: T-001,T-002)')
+    .requiredOption('--phase <phaseSlug>', 'phase_slug')
+    .requiredOption('--group <groupKey>', 'group_key')
+    .action(async (opts: { tasks: string; phase: string; group: string }) => {
+      assertValidGroupKey(opts.group)
+      const clientIds = opts.tasks.split(',').map((s) => s.trim()).filter(Boolean)
+      for (const id of clientIds) {
+        assertValidTaskClientId(id)
+      }
+      const planId = await requireField('plan_id')
+      const state = await getPlanState(planId, opts.phase)
+      const targetTasks: WaveTask[] = []
+      for (const g of state.groups) {
+        if (g.group_key !== opts.group) continue
+        for (const t of g.tasks) {
+          if (clientIds.includes(t.client_id)) {
+            targetTasks.push({
+              id: t.id,
+              client_id: t.client_id,
+              phase_slug: t.phase_slug,
+              group_key: t.group_key,
+              description: t.description,
+              acceptance_criteria: t.acceptance_criteria,
+              test_file_path: t.test_file_path,
+              status: t.status,
+              depends_on_client_ids: t.depends_on_client_ids,
+              output_artifacts: t.output_artifacts,
+            })
+          }
+        }
+      }
+      const result = validateDisjoint({ tasks: targetTasks })
+      console.log(JSON.stringify(result, null, 2))
+      if (!result.ok) {
+        process.exit(1)
+      }
+    })
+
+  wave
+    .command('merge')
+    .description('task branch 들의 commits 을 group branch (feat/<group>-group) 로 cherry-pick (task_client_id 순)')
+    .requiredOption('--group <groupKey>', 'group_key')
+    .requiredOption('--tasks <ids>', '쉼표 분리 task client_id 들')
+    .action(async (opts: { group: string; tasks: string }) => {
+      const taskClientIds = opts.tasks.split(',').map((s) => s.trim()).filter(Boolean)
+      try {
+        const result = await mergeWave({ groupKey: opts.group, taskClientIds })
+        console.log(JSON.stringify(result, null, 2))
+      } catch (e) {
+        console.error('✗', e instanceof Error ? e.message : String(e))
+        process.exit(1)
+      }
+    })
+}

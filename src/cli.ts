@@ -13,6 +13,7 @@ import { groupCommand } from './commands/group.js'
 import { commitsCommand } from './commands/commits.js'
 import { worktreeCommand } from './commands/worktree.js'
 import { workerCommand } from './commands/worker.js'
+import { waveCommand } from './commands/wave.js'
 
 const require = createRequire(import.meta.url)
 const pkg = require('../package.json') as { version: string }
@@ -49,6 +50,7 @@ for (const register of [
   commitsCommand,
   worktreeCommand,
   workerCommand,
+  waveCommand,
 ]) {
   register(program)
 }
