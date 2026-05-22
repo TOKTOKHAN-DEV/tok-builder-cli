@@ -5,8 +5,8 @@ import { requireField } from '../lib/config.js'
 
 // ⚠️ pj-platform 의 lib/build-plan/constants.ts TDD_BYPASS_PHASES 와 동기 필수.
 // phase set 변경 시 양쪽 같이 업데이트. (cli 와 platform 의 drift 방지)
+// Phase 1 (design-spec) 제거 후 — #8 (4 phase: infra-setup / qa / release / handoff).
 const TDD_BYPASS_PHASES = new Set<string>([
-  'design-spec',
   'infra-setup',
   'qa',
   'release',
