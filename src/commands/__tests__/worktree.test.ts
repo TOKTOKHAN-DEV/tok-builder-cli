@@ -125,6 +125,34 @@ describe('tokb worktree create-task', () => {
   })
 })
 
+describe('tokb worktree cleanup (확장)', () => {
+  let repo: string
+  beforeEach(() => {
+    repo = initRepo()
+  })
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true })
+  })
+
+  it('확장 — task worktree N + task branch N 모두 일괄 제거 (Stage A)', async () => {
+    await worktreeCreate({ groupKey: 'auth', cwd: repo })
+    await worktreeCreateTask({ groupKey: 'auth', taskClientId: 'T-001', cwd: repo })
+    await worktreeCreateTask({ groupKey: 'auth', taskClientId: 'T-002', cwd: repo })
+
+    await worktreeCleanup({ groupKey: 'auth', cwd: repo })
+
+    // group worktree + task worktree 모두 제거됨
+    expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'auth'))).toBe(false)
+    expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'auth__T-001'))).toBe(false)
+    expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'auth__T-002'))).toBe(false)
+
+    // task branch 도 제거됨 (group branch feat/auth-group 는 PR 머지 후 자동 삭제)
+    const branches = execSync('git branch', { cwd: repo }).toString()
+    expect(branches).not.toContain('feat/auth/T-001')
+    expect(branches).not.toContain('feat/auth/T-002')
+  })
+})
+
 describe('tokb worktree cleanup-task', () => {
   let repo: string
   beforeEach(() => {

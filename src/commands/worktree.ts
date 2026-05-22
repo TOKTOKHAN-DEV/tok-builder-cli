@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { assertValidGroupKey } from '../lib/group-key.js'
 import { assertValidTaskClientId } from '../lib/task-key.js'
@@ -50,9 +50,47 @@ export interface WorktreeCleanupOpts {
 export async function worktreeCleanup(opts: WorktreeCleanupOpts): Promise<void> {
   assertValidGroupKey(opts.groupKey)
   const cwd = opts.cwd ?? process.cwd()
-  const wtPath = path.join(cwd, '.tokb', 'worktrees', opts.groupKey)
-  if (!existsSync(wtPath)) return
-  execFileSync('git', ['worktree', 'remove', '--force', wtPath], { cwd, stdio: 'pipe' })
+  const worktreesDir = path.join(cwd, '.tokb', 'worktrees')
+
+  // 1) glob .tokb/worktrees/<group_key>__*/ — 모든 task worktree remove
+  if (existsSync(worktreesDir)) {
+    const prefix = `${opts.groupKey}__`
+    const entries = readdirSync(worktreesDir)
+    for (const entry of entries) {
+      if (entry.startsWith(prefix)) {
+        const taskWtPath = path.join(worktreesDir, entry)
+        try {
+          execFileSync('git', ['worktree', 'remove', '--force', taskWtPath], { cwd, stdio: 'pipe' })
+        } catch {
+          // 이미 제거된 worktree — skip
+        }
+      }
+    }
+  }
+
+  // 2) feat/<group_key>/* task branch 모두 삭제
+  try {
+    const out = execFileSync(
+      'git',
+      ['for-each-ref', '--format=%(refname:short)', `refs/heads/feat/${opts.groupKey}/`],
+      { cwd, stdio: 'pipe' },
+    ).toString()
+    for (const branch of out.split('\n').filter(Boolean)) {
+      try {
+        execFileSync('git', ['branch', '-D', branch], { cwd, stdio: 'pipe' })
+      } catch {
+        // branch 삭제 실패 (이미 삭제됨 등) — skip
+      }
+    }
+  } catch {
+    // for-each-ref 자체 실패 (해당 prefix branch 0) — skip
+  }
+
+  // 3) group worktree (.tokb/worktrees/<group_key>/) 제거 (기존 동작)
+  const wtPath = path.join(worktreesDir, opts.groupKey)
+  if (existsSync(wtPath)) {
+    execFileSync('git', ['worktree', 'remove', '--force', wtPath], { cwd, stdio: 'pipe' })
+  }
 }
 
 export interface WorktreeCreateTaskOpts {
