@@ -84,7 +84,7 @@ describe('fetchProjectSecrets', () => {
 
     await expect(
       fetchProjectSecrets('https://platform.test', 'project-id', 'token'),
-    ).rejects.toThrow('newline/NUL')
+    ).rejects.toThrow('제어 문자 포함 금지')
   })
 
   it('Authorization 헤더 + endpoint URL 정합 (encodeURIComponent)', async () => {

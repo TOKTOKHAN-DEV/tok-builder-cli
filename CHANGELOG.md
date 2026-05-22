@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.1] - 2026-05-22
+
+### Fixed
+
+- `SECRET_VALUE_DENY` regex platform 정합 — `[\r\n\0]` → `[\x00-\x1F\x7F]` (platform `lib/projects/secrets/server.ts` 의 control char 차단 룰 sync). 옛 regex 는 newline/NUL 만 차단, ESC/TAB 등 일부 제어 문자 통과 — `.env.local` 깨짐 위험 잔존.
+- `tsconfig.json` `exclude` 에 `src/**/__tests__/**` + `**/*.test.ts` 추가 — npm tarball 정리 (187.8 kB → 97.1 kB unpacked, 약 48% 감축).
+- README `tokb group complete` v1.x stale 표현 정정 (이미 `gh pr create` 자동 호출 영역).
+
 ## [0.16.0] - 2026-05-22
 
 ### Added (#12-B — 외부 키 platform 입력 → 로컬 sync 흐름)

@@ -5,7 +5,8 @@ import { requireConfig } from '../lib/config.js'
 import { upsertEnvLocal } from '../lib/env-local.js'
 
 const SECRET_KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/
-const SECRET_VALUE_DENY = /[\r\n\0]/
+// platform `lib/projects/secrets/server.ts` 의 control char 차단 정합 — newline/NUL 외 모든 제어 문자.
+const SECRET_VALUE_DENY = /[\x00-\x1F\x7F]/
 
 const SecretsResponseSchema = z.object({
   secrets: z.array(
@@ -13,7 +14,7 @@ const SecretsResponseSchema = z.object({
       key: z.string().regex(SECRET_KEY_PATTERN, 'key 형식 위반 (^[A-Z][A-Z0-9_]{0,63}$)'),
       value: z
         .string()
-        .refine((v) => !SECRET_VALUE_DENY.test(v), 'value 에 newline/NUL 포함 금지 (.env.local 깨짐 방어)'),
+        .refine((v) => !SECRET_VALUE_DENY.test(v), 'value 에 제어 문자 포함 금지 (.env.local 깨짐 방어)'),
     }),
   ),
 })
