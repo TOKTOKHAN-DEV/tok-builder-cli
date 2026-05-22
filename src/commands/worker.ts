@@ -217,14 +217,23 @@ export function workerCommand(program: Command): void {
 
   worker
     .command('prompt')
-    .description('group / phase 별 worker subagent prompt 자동 생성 (platform /state API)')
-    .requiredOption('--group <groupKey>', 'group_key')
-    .requiredOption('--phase <phaseSlug>', 'phase_slug')
+    .description('group / phase 별 worker subagent prompt 또는 task 단일 prompt 자동 생성')
+    .option('--group <groupKey>', 'group_key (group 단위 prompt — 기존 흐름 / fallback)')
+    .option('--phase <phaseSlug>', 'phase_slug (--group 와 함께)')
+    .option('--task <taskUuid>', 'task uuid (task 단일 prompt — Stage A 병렬 dispatch)')
     .requiredOption('--worktree <path>', 'worktree absolute path')
-    .action(async (opts: WorkerPromptActionOpts) => {
+    .action(async (opts: { group?: string; phase?: string; task?: string; worktree: string }) => {
       try {
-        const prompt = await workerPromptAction(opts)
-        process.stdout.write(prompt)
+        if (opts.task) {
+          const prompt = await workerPromptActionByTask({ task: opts.task, worktree: opts.worktree })
+          process.stdout.write(prompt)
+        } else if (opts.group && opts.phase) {
+          const prompt = await workerPromptAction({ group: opts.group, phase: opts.phase, worktree: opts.worktree })
+          process.stdout.write(prompt)
+        } else {
+          console.error('✗ --task 또는 (--group + --phase) 중 하나 필수')
+          process.exit(1)
+        }
       } catch (err) {
         console.error('✗', err instanceof Error ? err.message : String(err))
         process.exit(1)

@@ -188,4 +188,19 @@ export function worktreeCommand(program: Command): void {
       await worktreeCleanup({ groupKey })
       console.log(`✓ worktree 제거: .tokb/worktrees/${groupKey}/`)
     })
+
+  wt.command('create-task <groupKey> <taskClientId>')
+    .description('group 의 task 단위 worktree 생성 (.tokb/worktrees/<group_key>__<task_client_id>/ + feat/<group_key>/<task_client_id> branch, base: feat/<group_key>-group)')
+    .action(async (groupKey: string, taskClientId: string) => {
+      const result = await worktreeCreateTask({ groupKey, taskClientId })
+      console.log(`✓ task worktree 생성: ${result.path}`)
+      console.log(`  branch: ${result.branch}`)
+    })
+
+  wt.command('cleanup-task <groupKey> <taskClientId>')
+    .description('task 단위 worktree 만 제거 (task branch 는 group cleanup 시 일괄 삭제)')
+    .action(async (groupKey: string, taskClientId: string) => {
+      await worktreeCleanupTask({ groupKey, taskClientId })
+      console.log(`✓ task worktree 제거: .tokb/worktrees/${groupKey}__${taskClientId}/`)
+    })
 }

@@ -149,13 +149,13 @@ describe('group complete', () => {
     await program.parseAsync(['group', 'complete', 'auth'], { from: 'user' })
 
     const calls = vi.mocked(execFileSync).mock.calls
-    // 첫 번째 호출: git push -u origin feat/auth
-    expect(calls[0]).toEqual(['git', ['push', '-u', 'origin', 'feat/auth'], { stdio: 'inherit' }])
+    // 첫 번째 호출: git push -u origin feat/auth-group
+    expect(calls[0]).toEqual(['git', ['push', '-u', 'origin', 'feat/auth-group'], { stdio: 'inherit' }])
     // 두 번째 호출: gh pr create (stdio: 'pipe')
     expect(calls[1][0]).toBe('gh')
     expect(calls[1][1]).toContain('pr')
     expect(calls[1][1]).toContain('create')
-    expect(calls[1][1]).toContain('feat/auth')
+    expect(calls[1][1]).toContain('feat/auth-group')
     expect(calls[1][1]).toContain('feat(auth): group complete')
     expect(calls[1][2]).toMatchObject({ stdio: 'pipe' })
 
@@ -174,7 +174,7 @@ describe('group complete', () => {
       .mockImplementationOnce(() => Buffer.from('')) // git push OK
       .mockImplementationOnce(() => {
         const err = new Error('Command failed: gh pr create ...') as Error & { stderr?: Buffer }
-        err.stderr = Buffer.from("a pull request for branch 'feat/auth' already exists")
+        err.stderr = Buffer.from("a pull request for branch 'feat/auth-group' already exists")
         throw err
       }) // gh pr create — already exists
 
