@@ -1,6 +1,6 @@
 {
   "name": "@toktokhan-dev/tok-builder-cli",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "private": false,
   "description": "tok-builder CLI for pj-platform build-plan tracking (login/task/plan/run/phase/resume/init). Internal to toktokhan-dev.",
   "repository": {
