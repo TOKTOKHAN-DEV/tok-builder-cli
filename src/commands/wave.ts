@@ -1,3 +1,14 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+
+import { Command } from 'commander'
+
+import { getPlanState } from '../lib/api.js'
+import { requireField } from '../lib/config.js'
+import { assertValidGroupKey, assertValidPhaseSlug } from '../lib/group-key.js'
+import { assertValidTaskClientId } from '../lib/task-key.js'
+
 export interface WaveTask {
   id: string
   client_id: string
@@ -47,7 +58,10 @@ export function computeNextWave(input: ComputeNextWaveInput): ComputeNextWaveRes
     return { wave_index: -1, tasks: [] }
   }
 
-  // wave_index: done 된 task 수 기반 단순 추정 (debugging / UI 표시 용도)
+  // wave_index 의 의미 — 다음 wave 의 번호 (debugging / UI 표시 용도).
+  // 빈 wave (모두 done 또는 candidates 0) = -1
+  // 그 외 = floor(doneCount / totalCount) + 1 — done 비율 기반 단순 추정
+  //   (totalCount 0 보장 + Math.max(1, ...) — 0 div 방어)
   const waveIndex =
     totalCount === 0 ? 0 : Math.floor(allDoneCount / Math.max(1, totalCount - allDoneCount)) + 1
 
@@ -98,15 +112,6 @@ export function validateDisjoint(input: ValidateDisjointInput): ValidateDisjoint
   return { ok: conflicts.length === 0, conflicts }
 }
 
-import { execFileSync } from 'node:child_process'
-
-import { Command } from 'commander'
-
-import { getPlanState } from '../lib/api.js'
-import { requireField } from '../lib/config.js'
-import { assertValidGroupKey } from '../lib/group-key.js'
-import { assertValidTaskClientId } from '../lib/task-key.js'
-
 export interface MergeWaveOpts {
   groupKey: string
   taskClientIds: string[]
@@ -156,15 +161,24 @@ export async function mergeWave(opts: MergeWaveOpts): Promise<MergeWaveResult> {
         execFileSync('git', ['cherry-pick', sha], { cwd, stdio: 'pipe' })
         mergedCommits++
       } catch (e) {
-        // abort + throw
+        let abortFailed = false
         try {
           execFileSync('git', ['cherry-pick', '--abort'], { cwd, stdio: 'pipe' })
         } catch {
-          // abort 자체 실패 — 무시
+          abortFailed = true
         }
-        const msg = e instanceof Error ? e.message : String(e)
+        // CHERRY_PICK_HEAD 잔존 검사 — abort 실패 시 명시
+        const cherryPickHeadPath = path.join(cwd, '.git', 'CHERRY_PICK_HEAD')
+        const stateRemains = existsSync(cherryPickHeadPath)
+        const rawMsg = e instanceof Error ? e.message : String(e)
+        const msg = rawMsg.replace(/[\r\n\t\x1b]/g, ' ')
+        const stateNote = stateRemains
+          ? ' ⚠️ git 상태 불일치 — 수동 `git cherry-pick --abort` 필요.'
+          : abortFailed
+            ? ' (cherry-pick --abort 실패, 상태 정리됨)'
+            : ''
         throw new Error(
-          `cherry-pick conflict — task ${taskId} commit ${sha.slice(0, 7)} 충돌. file disjoint 룰 위반 가능성 (validate-disjoint 사전 호출 권장). ${msg}`,
+          `cherry-pick conflict — task ${taskId} commit ${sha.slice(0, 7)} 충돌. file disjoint 룰 위반 가능성 (validate-disjoint 사전 호출 권장). ${msg}${stateNote}`,
         )
       }
     }
@@ -182,6 +196,7 @@ export function waveCommand(program: Command): void {
     .requiredOption('--phase <phaseSlug>', 'phase_slug')
     .requiredOption('--group <groupKey>', 'group_key')
     .action(async (opts: { phase: string; group: string }) => {
+      assertValidPhaseSlug(opts.phase)
       assertValidGroupKey(opts.group)
       const planId = await requireField('plan_id')
       const state = await getPlanState(planId, opts.phase)
@@ -213,6 +228,7 @@ export function waveCommand(program: Command): void {
     .requiredOption('--phase <phaseSlug>', 'phase_slug')
     .requiredOption('--group <groupKey>', 'group_key')
     .action(async (opts: { tasks: string; phase: string; group: string }) => {
+      assertValidPhaseSlug(opts.phase)
       assertValidGroupKey(opts.group)
       const clientIds = opts.tasks.split(',').map((s) => s.trim()).filter(Boolean)
       for (const id of clientIds) {
@@ -253,7 +269,11 @@ export function waveCommand(program: Command): void {
     .requiredOption('--group <groupKey>', 'group_key')
     .requiredOption('--tasks <ids>', '쉼표 분리 task client_id 들')
     .action(async (opts: { group: string; tasks: string }) => {
+      assertValidGroupKey(opts.group)
       const taskClientIds = opts.tasks.split(',').map((s) => s.trim()).filter(Boolean)
+      for (const id of taskClientIds) {
+        assertValidTaskClientId(id)
+      }
       try {
         const result = await mergeWave({ groupKey: opts.group, taskClientIds })
         console.log(JSON.stringify(result, null, 2))
