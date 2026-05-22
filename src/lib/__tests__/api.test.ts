@@ -112,7 +112,7 @@ describe('api', () => {
   it('getPlanState without phase omits query param', async () => {
     const stub = vi.fn(async (..._args: unknown[]) => ({
       ok: true, status: 200,
-      json: async () => ({ phase: 'design-spec', current_phase: 'design-spec', groups: [] }),
+      json: async () => ({ phase: 'infra-setup', current_phase: 'infra-setup', groups: [] }),
       text: async () => '',
     }))
     vi.stubGlobal('fetch', stub)

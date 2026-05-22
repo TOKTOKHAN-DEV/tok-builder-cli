@@ -15,7 +15,7 @@ import type { WorkerTask } from '../worker'
 const sampleSpecTask: WorkerTask = {
   id: 'uuid-1',
   client_id: 't-001',
-  phase_slug: 'design-spec',
+  phase_slug: 'infra-setup',
   group_key: 'auth',
   group_type: null,
   domain: 'auth',
@@ -44,11 +44,11 @@ describe('buildWorkerPrompt', () => {
   it('spec phase task — test 작성 X 안내 + mechanical 검증 흐름', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
-      phaseSlug: 'design-spec',
+      phaseSlug: 'infra-setup',
       worktreePath: '/repo/.tokb/worktrees/auth',
       tasks: [sampleSpecTask],
     })
-    expect(prompt).toContain('phase_slug: design-spec')
+    expect(prompt).toContain('phase_slug: infra-setup')
     expect(prompt).toContain('test 작성 X')
     expect(prompt).toContain('mechanical 검증')
     expect(prompt).not.toContain('TDD red→green')
@@ -72,7 +72,7 @@ describe('buildWorkerPrompt', () => {
   it('worktree path / branch 명시', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
-      phaseSlug: 'design-spec',
+      phaseSlug: 'infra-setup',
       worktreePath: '/repo/.tokb/worktrees/auth',
       tasks: [sampleSpecTask],
     })
@@ -91,8 +91,8 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).toContain('uuid-3')
   })
 
-  it('bypass 5 phase 다 동일 흐름 (mechanical 검증)', () => {
-    const bypassPhases = ['design-spec', 'infra-setup', 'qa', 'release', 'handoff']
+  it('bypass 4 phase 다 동일 흐름 (mechanical 검증)', () => {
+    const bypassPhases = ['infra-setup', 'qa', 'release', 'handoff']
     for (const slug of bypassPhases) {
       const prompt = buildWorkerPrompt({
         groupKey: 'g',
@@ -208,18 +208,18 @@ describe('workerPromptAction', () => {
 
   it('happy path — planId config 로드 + state API 호출 + group 매칭 + prompt 반환', async () => {
     vi.mocked(getPlanState).mockResolvedValue({
-      phase: 'design-spec',
-      current_phase: 'design-spec',
+      phase: 'infra-setup',
+      current_phase: 'infra-setup',
       groups: [
         {
           parallel_group: 'auth',
           group_key: 'auth',
-          phase_slug: 'design-spec',
+          phase_slug: 'infra-setup',
           tasks: [
             {
               id: 'uuid-1',
               client_id: 't-001',
-              phase_slug: 'design-spec',
+              phase_slug: 'infra-setup',
               group_key: 'auth',
               group_type: null,
               domain: 'auth',
@@ -242,45 +242,45 @@ describe('workerPromptAction', () => {
 
     const prompt = await workerPromptAction({
       group: 'auth',
-      phase: 'design-spec',
+      phase: 'infra-setup',
       worktree: '/repo/.tokb/worktrees/auth',
     })
 
     expect(requireField).toHaveBeenCalledWith('plan_id')
-    expect(getPlanState).toHaveBeenCalledWith('plan-uuid-1', 'design-spec')
+    expect(getPlanState).toHaveBeenCalledWith('plan-uuid-1', 'infra-setup')
     expect(prompt).toContain('uuid-1')
-    expect(prompt).toContain('phase_slug: design-spec')
+    expect(prompt).toContain('phase_slug: infra-setup')
     expect(prompt).toContain('feat/auth-group')
   })
 
   it('group 매칭 0 — throw + 명령 / phase / group 표시', async () => {
     vi.mocked(getPlanState).mockResolvedValue({
-      phase: 'design-spec',
-      current_phase: 'design-spec',
+      phase: 'infra-setup',
+      current_phase: 'infra-setup',
       groups: [],
     })
 
     await expect(
-      workerPromptAction({ group: 'auth', phase: 'design-spec', worktree: '/p' }),
-    ).rejects.toThrow('phase=design-spec group=auth 의 task 없음')
+      workerPromptAction({ group: 'auth', phase: 'infra-setup', worktree: '/p' }),
+    ).rejects.toThrow('phase=infra-setup group=auth 의 task 없음')
   })
 
   it('group.group_key === null 인 group 은 매칭 안 됨', async () => {
     vi.mocked(getPlanState).mockResolvedValue({
-      phase: 'design-spec',
-      current_phase: 'design-spec',
+      phase: 'infra-setup',
+      current_phase: 'infra-setup',
       groups: [
         {
           parallel_group: 'g1',
           group_key: null,
-          phase_slug: 'design-spec',
+          phase_slug: 'infra-setup',
           tasks: [],
         },
       ],
     })
 
     await expect(
-      workerPromptAction({ group: 'auth', phase: 'design-spec', worktree: '/p' }),
+      workerPromptAction({ group: 'auth', phase: 'infra-setup', worktree: '/p' }),
     ).rejects.toThrow('의 task 없음')
   })
 })

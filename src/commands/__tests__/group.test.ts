@@ -18,15 +18,15 @@ import { requireField } from '../../lib/config.js'
 import { getProjectState } from '../../lib/api.js'
 
 const fakeTasks = [
-  { id: 't1', group_key: 'auth', phase_slug: 'design-spec', status: 'pending' as const },
+  { id: 't1', group_key: 'auth', phase_slug: 'infra-setup', status: 'pending' as const },
   { id: 't2', group_key: 'auth', phase_slug: 'core-impl', status: 'done' as const },
-  { id: 't3', group_key: 'vehicle', phase_slug: 'design-spec', status: 'pending' as const },
+  { id: 't3', group_key: 'vehicle', phase_slug: 'infra-setup', status: 'pending' as const },
   { id: 't4', group_key: null as string | null, phase_slug: 'qa', status: 'pending' as const },
 ];
 
 describe('filterGroupTasks', () => {
   it('group_key + phase_slug 둘 다 매칭', () => {
-    const result = filterGroupTasks(fakeTasks, 'auth', 'design-spec');
+    const result = filterGroupTasks(fakeTasks, 'auth', 'infra-setup');
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('t1');
   });
@@ -63,12 +63,12 @@ function makeProgram() {
 }
 
 const allDoneTasks = [
-  { id: 't1', group_key: 'auth', phase_slug: 'design-spec', status: 'done' as const, title: 'task1', domain: null, group_type: null },
+  { id: 't1', group_key: 'auth', phase_slug: 'infra-setup', status: 'done' as const, title: 'task1', domain: null, group_type: null },
   { id: 't2', group_key: 'auth', phase_slug: 'core-impl', status: 'done' as const, title: 'task2', domain: null, group_type: null },
 ]
 
 const pendingTasks = [
-  { id: 't1', group_key: 'auth', phase_slug: 'design-spec', status: 'done' as const, title: 'task1', domain: null, group_type: null },
+  { id: 't1', group_key: 'auth', phase_slug: 'infra-setup', status: 'done' as const, title: 'task1', domain: null, group_type: null },
   { id: 't2', group_key: 'auth', phase_slug: 'core-impl', status: 'pending' as const, title: 'task2', domain: null, group_type: null },
 ]
 
