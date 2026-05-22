@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.15.0] - 2026-05-22
+
+### Added (AI-DLC Stage A — group 안 task 간 wave 병렬 dispatch)
+
+- `tokb worktree create-task <group_key> <task_client_id>` — task 단위 격리 worktree (`.tokb/worktrees/<gk>__<id>/`) + branch `feat/<gk>/<task_client_id>` (base: `feat/<gk>-group`). git ref namespace 충돌 회피 위해 group branch 명에 `-group` suffix.
+- `tokb worktree cleanup-task <group_key> <task_client_id>` — task worktree 만 제거 (branch 보존, group cleanup 시 일괄 삭제).
+- `tokb worktree cleanup <group_key>` 확장 — group worktree + 모든 task worktree (`<gk>__*/`) + 모든 task branch (`refs/heads/feat/<gk>/*`) 일괄.
+- `tokb wave next --phase <slug> --group <gk>` — depends_on 그래프 topological wave 계산. status='pending' + deps 모두 done 인 task list (JSON).
+- `tokb wave validate-disjoint --tasks <ids> --phase --group` — wave 안 task 들의 output_artifacts (path 기준) pairwise intersection 검증. 충돌 시 exit 1 + conflicts JSON 보고.
+- `tokb wave merge --group <gk> --tasks <ids>` — task branch 들의 group branch 이후 commits 을 group branch (`feat/<gk>-group`) 로 cherry-pick (task_client_id 순). 충돌 시 `cherry-pick --abort` + throw.
+- `tokb worker prompt --task <task_uuid> --worktree <path>` — 단일 task prompt 빌더 (Stage A wave 정상 경로). 기존 `--group + --phase` 모드는 fallback (직렬) 로 보존.
+- `buildWorkerPrompt` 시그니처에 `branch?: string` optional 추가. 미명시 시 default `feat/<groupKey>-group` (group 단위 fallback / 기존 흐름).
+- `PlanStateResponse` task shape 에 `output_artifacts?` (Array of `{path, kind}`) + `depends_on_client_ids?` 추가.
+- `assertValidTaskClientId` helper (`src/lib/task-key.ts`) — pattern `^[tT]-[0-9]+$` (path / branch injection 방어).
+
+### Changed
+
+- `tokb worktree create <group_key>` 의 branch 명 `feat/<gk>` → `feat/<gk>-group` (Stage A 의 task branch `feat/<gk>/<id>` 와 git ref namespace 충돌 회피).
+- `tokb group complete <group_key>` 의 PR head 인자 정합 (`feat/<gk>-group`).
+
+### Notes
+
+- Stage A 본질: group 안 task 들을 wave (depends_on 그래프 topological level) 단위로 병렬 dispatch. file 충돌 안전을 위해 wave 안 task 들의 `output_artifacts` disjoint 의무 (skill 3 룰 + cli validate-disjoint 이중망).
+- 자세한 흐름: `tok-builder-template` 의 `.claude/skills/tokb-core-workflow.md` "wave 흐름" 섹션 + `.claude/CLAUDE.md` §2 main loop.
+
 ## [0.14.0] - 2026-05-21
 
 ### Added
