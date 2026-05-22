@@ -58,10 +58,12 @@ export interface BuildWorkerPromptArgs {
   phaseSlug: string
   worktreePath: string
   tasks: WorkerTask[]
+  branch?: string  // 명시 시 그대로 사용. 미명시 시 feat/<groupKey>-group 기본 (group 단위 fallback / 기존 흐름)
 }
 
 export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
   const { groupKey, phaseSlug, worktreePath, tasks } = args
+  const branch = args.branch ?? `feat/${groupKey}-group`
   const isBypass = TDD_BYPASS_PHASES.has(phaseSlug)
 
   const tddSection = isBypass
@@ -115,7 +117,7 @@ ${fence}
 ## 작업 위치
 
 - worktree: ${worktreePath}
-- branch: feat/${groupKey}
+- branch: ${branch}
 - cd 후 작업 진행
 
 ## bootstrap
@@ -169,6 +171,44 @@ export async function workerPromptAction(opts: WorkerPromptActionOpts): Promise<
     phaseSlug: opts.phase,
     worktreePath: opts.worktree,
     tasks: group.tasks,
+  })
+}
+
+export interface WorkerPromptByTaskOpts {
+  task: string  // task uuid
+  worktree: string
+}
+
+export async function workerPromptActionByTask(opts: WorkerPromptByTaskOpts): Promise<string> {
+  const planId = await requireField('plan_id')
+  const state = await getPlanState(planId)
+
+  let foundTask: WorkerTask | null = null
+  let foundGroupKey: string | null = null
+  let foundPhaseSlug: string | null = null
+
+  for (const group of state.groups) {
+    for (const task of group.tasks) {
+      if (task.id === opts.task) {
+        foundTask = task
+        foundGroupKey = group.group_key
+        foundPhaseSlug = group.phase_slug
+        break
+      }
+    }
+    if (foundTask) break
+  }
+
+  if (!foundTask || !foundGroupKey || !foundPhaseSlug) {
+    throw new Error(`task ${opts.task} 의 plan state 응답에 없음`)
+  }
+
+  return buildWorkerPrompt({
+    groupKey: foundGroupKey,
+    phaseSlug: foundPhaseSlug,
+    worktreePath: opts.worktree,
+    tasks: [foundTask],
+    branch: `feat/${foundGroupKey}/${foundTask.client_id}`,  // task branch (Stage A wave 정상 경로)
   })
 }
 

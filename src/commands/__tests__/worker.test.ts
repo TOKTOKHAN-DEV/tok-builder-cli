@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { buildWorkerPrompt, workerPromptAction } from '../worker'
+import { buildWorkerPrompt, workerPromptAction, workerPromptActionByTask } from '../worker'
 import { requireField } from '../../lib/config.js'
 import { getPlanState } from '../../lib/api.js'
 
@@ -77,7 +77,7 @@ describe('buildWorkerPrompt', () => {
       tasks: [sampleSpecTask],
     })
     expect(prompt).toContain('/repo/.tokb/worktrees/auth')
-    expect(prompt).toContain('feat/auth')
+    expect(prompt).toContain('feat/auth-group')
   })
 
   it('group 내 task 들 모두 포함', () => {
@@ -250,7 +250,7 @@ describe('workerPromptAction', () => {
     expect(getPlanState).toHaveBeenCalledWith('plan-uuid-1', 'design-spec')
     expect(prompt).toContain('uuid-1')
     expect(prompt).toContain('phase_slug: design-spec')
-    expect(prompt).toContain('feat/auth')
+    expect(prompt).toContain('feat/auth-group')
   })
 
   it('group 매칭 0 — throw + 명령 / phase / group 표시', async () => {
@@ -282,5 +282,96 @@ describe('workerPromptAction', () => {
     await expect(
       workerPromptAction({ group: 'auth', phase: 'design-spec', worktree: '/p' }),
     ).rejects.toThrow('의 task 없음')
+  })
+})
+
+describe('workerPromptActionByTask (Stage A — task 단위 prompt)', () => {
+  beforeEach(() => {
+    vi.mocked(requireField).mockResolvedValue('plan-uuid-1')
+    vi.mocked(getPlanState).mockReset()
+  })
+
+  it('happy path — task uuid 로 단일 task 추출 + prompt 생성 (task branch feat/<gk>/<id>)', async () => {
+    vi.mocked(getPlanState).mockResolvedValue({
+      phase: 'core-impl',
+      current_phase: 'core-impl',
+      groups: [
+        {
+          parallel_group: 'auth',
+          group_key: 'auth',
+          phase_slug: 'core-impl',
+          tasks: [
+            {
+              id: 'uuid-target',
+              client_id: 'T-001',
+              phase_slug: 'core-impl',
+              group_key: 'auth',
+              group_type: null,
+              domain: 'auth',
+              parallel_group: 'auth',
+              title: 'login API',
+              description: '[SCR-001] login API 구현',
+              acceptance_criteria: '- [mechanical] vitest pass',
+              depends_on: [],
+              status: 'pending',
+              task_type: 'auto',
+              test_file_path: 'src/api/auth/login.test.ts',
+              commit_sha_test: null,
+              commit_sha_code: null,
+              evidence_note: null,
+            },
+            {
+              id: 'uuid-other',
+              client_id: 'T-002',
+              phase_slug: 'core-impl',
+              group_key: 'auth',
+              group_type: null,
+              domain: 'auth',
+              parallel_group: 'auth',
+              title: 'session',
+              description: 'session 관리',
+              acceptance_criteria: '- pass',
+              depends_on: [],
+              status: 'pending',
+              task_type: 'auto',
+              test_file_path: 'src/lib/session.test.ts',
+              commit_sha_test: null,
+              commit_sha_code: null,
+              evidence_note: null,
+            },
+          ],
+        },
+      ],
+    })
+
+    const prompt = await workerPromptActionByTask({
+      task: 'uuid-target',
+      worktree: '/repo/.tokb/worktrees/auth__T-001',
+    })
+
+    expect(prompt).toContain('uuid-target')
+    expect(prompt).not.toContain('uuid-other')  // 단일 task 만
+    expect(prompt).toContain('login API 구현')
+    expect(prompt).toContain('feat/auth/T-001')  // task branch 명시 (계층 형식)
+    expect(prompt).toContain('/repo/.tokb/worktrees/auth__T-001')
+  })
+
+  it('task 매칭 0 — throw', async () => {
+    vi.mocked(getPlanState).mockResolvedValue({
+      phase: 'core-impl',
+      current_phase: 'core-impl',
+      groups: [
+        {
+          parallel_group: 'auth',
+          group_key: 'auth',
+          phase_slug: 'core-impl',
+          tasks: [],
+        },
+      ],
+    })
+
+    await expect(
+      workerPromptActionByTask({ task: 'uuid-missing', worktree: '/p' })
+    ).rejects.toThrow(/task uuid-missing.*없음/)
   })
 })
