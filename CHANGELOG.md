@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.16.0] - 2026-05-22
+
+### Added (#12-B — 외부 키 platform 입력 → 로컬 sync 흐름)
+
+- `tokb env sync` — platform `/api/agent/projects/[id]/secrets` GET + 응답 secrets 배열을 `.env.local` 에 upsert. 비개발자가 platform UI 에서 외부 API 키 등록 → 로컬 build repo 가 sync 받는 흐름의 cli 측 1 단계.
+- `fetchProjectSecrets()` export — testability + 다른 명령 (`tokb preflight` 자동 호출) 재사용용.
+- 404 응답 = 등록 키 없음 (graceful skip, exit 0). non-2xx 응답 = throw + exit 1.
+
+### Notes
+
+- platform 측 `/api/agent/projects/[id]/secrets` endpoint 는 별 PR (pj-platform #12-A 후속) 에서 구현.
+- worker dispatch 직전 자동 호출 흐름은 별 후속 (preflight 통합) 영역.
+
 ## [0.15.0] - 2026-05-22
 
 ### Added (AI-DLC Stage A — group 안 task 간 wave 병렬 dispatch)
