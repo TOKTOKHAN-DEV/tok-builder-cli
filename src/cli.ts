@@ -9,6 +9,7 @@ import { runCommand } from './commands/run.js'
 import { phaseCommand } from './commands/phase.js'
 import { resumeCommand } from './commands/resume.js'
 import { initCommand } from './commands/init.js'
+import { envCommand } from './commands/env.js'
 import { groupCommand } from './commands/group.js'
 import { commitsCommand } from './commands/commits.js'
 import { worktreeCommand } from './commands/worktree.js'
@@ -46,6 +47,7 @@ for (const register of [
   phaseCommand,
   resumeCommand,
   initCommand,
+  envCommand,
   groupCommand,
   commitsCommand,
   worktreeCommand,
