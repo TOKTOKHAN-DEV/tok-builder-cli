@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { worktreeCreate, worktreeCleanup } from '../worktree'
+import { worktreeCreate, worktreeCleanup, worktreeCreateTask, worktreeCleanupTask } from '../worktree'
 
 function initRepo(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'tokb-worktree-test-'))
@@ -24,20 +24,20 @@ describe('tokb worktree create', () => {
     rmSync(repo, { recursive: true, force: true })
   })
 
-  it('group_key 별 worktree 를 .tokb/worktrees/<group_key>/ 에 생성 + feat/<group_key> branch', async () => {
+  it('group_key 별 worktree 를 .tokb/worktrees/<group_key>/ 에 생성 + feat/<group_key>-group branch', async () => {
     const result = await worktreeCreate({ groupKey: 'auth', cwd: repo })
     expect(result.path).toBe(path.join(repo, '.tokb', 'worktrees', 'auth'))
-    expect(result.branch).toBe('feat/auth')
+    expect(result.branch).toBe('feat/auth-group')
     expect(existsSync(result.path)).toBe(true)
     const branches = execSync('git branch', { cwd: repo }).toString()
-    expect(branches).toContain('feat/auth')
+    expect(branches).toContain('feat/auth-group')
   })
 
   it('이미 존재하는 worktree 는 idempotent (재호출 OK)', async () => {
     await worktreeCreate({ groupKey: 'users', cwd: repo })
     const result2 = await worktreeCreate({ groupKey: 'users', cwd: repo })
     expect(result2.path).toBe(path.join(repo, '.tokb', 'worktrees', 'users'))
-    expect(result2.branch).toBe('feat/users')
+    expect(result2.branch).toBe('feat/users-group')
   })
 
   it('branch 는 존재하지만 worktree 는 없는 경우 (옛 cleanup 잔존) — -b 없이 worktree add 성공', async () => {
@@ -47,7 +47,7 @@ describe('tokb worktree create', () => {
 
     // branch 가 살아 있는지 확인
     const branches = execSync('git branch', { cwd: repo }).toString()
-    expect(branches).toContain('feat/payments')
+    expect(branches).toContain('feat/payments-group')
 
     // worktree 경로는 없어야 함
     const wtPath = path.join(repo, '.tokb', 'worktrees', 'payments')
@@ -56,7 +56,7 @@ describe('tokb worktree create', () => {
     // 재생성 — -b 없이 기존 branch 로 worktree add 돼야 함
     const result = await worktreeCreate({ groupKey: 'payments', cwd: repo })
     expect(result.path).toBe(wtPath)
-    expect(result.branch).toBe('feat/payments')
+    expect(result.branch).toBe('feat/payments-group')
     expect(existsSync(wtPath)).toBe(true)
   })
 })
@@ -78,5 +78,75 @@ describe('tokb worktree cleanup', () => {
 
   it('존재하지 않는 worktree cleanup 시 idempotent (조용히 통과)', async () => {
     await expect(worktreeCleanup({ groupKey: 'nonexistent', cwd: repo })).resolves.toBeUndefined()
+  })
+})
+
+describe('tokb worktree create-task', () => {
+  let repo: string
+  beforeEach(() => {
+    repo = initRepo()
+  })
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true })
+  })
+
+  it('group worktree 가 사전 존재해야 함 (base branch feat/<gk>-group 가 있어야 task branch 가능)', async () => {
+    await worktreeCreate({ groupKey: 'auth', cwd: repo })
+    const result = await worktreeCreateTask({
+      groupKey: 'auth',
+      taskClientId: 'T-001',
+      cwd: repo,
+    })
+    expect(result.path).toBe(path.join(repo, '.tokb', 'worktrees', 'auth__T-001'))
+    expect(result.branch).toBe('feat/auth/T-001')
+    expect(existsSync(result.path)).toBe(true)
+    const branches = execSync('git branch', { cwd: repo }).toString()
+    expect(branches).toContain('feat/auth/T-001')
+  })
+
+  it('group worktree 부재 시 throw (feat/<gk>-group base 없음)', async () => {
+    await expect(worktreeCreateTask({
+      groupKey: 'missing',
+      taskClientId: 'T-001',
+      cwd: repo,
+    })).rejects.toThrow(/feat\/missing-group/)
+  })
+
+  it('이미 존재하는 task worktree — idempotent (재호출 OK)', async () => {
+    await worktreeCreate({ groupKey: 'auth', cwd: repo })
+    await worktreeCreateTask({ groupKey: 'auth', taskClientId: 'T-001', cwd: repo })
+    const result2 = await worktreeCreateTask({
+      groupKey: 'auth',
+      taskClientId: 'T-001',
+      cwd: repo,
+    })
+    expect(result2.path).toBe(path.join(repo, '.tokb', 'worktrees', 'auth__T-001'))
+    expect(result2.branch).toBe('feat/auth/T-001')
+  })
+})
+
+describe('tokb worktree cleanup-task', () => {
+  let repo: string
+  beforeEach(() => {
+    repo = initRepo()
+  })
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true })
+  })
+
+  it('task worktree 만 제거 (branch 보존)', async () => {
+    await worktreeCreate({ groupKey: 'auth', cwd: repo })
+    await worktreeCreateTask({ groupKey: 'auth', taskClientId: 'T-001', cwd: repo })
+    await worktreeCleanupTask({ groupKey: 'auth', taskClientId: 'T-001', cwd: repo })
+
+    expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'auth__T-001'))).toBe(false)
+    const branches = execSync('git branch', { cwd: repo }).toString()
+    expect(branches).toContain('feat/auth/T-001') // branch 는 살아 있음
+  })
+
+  it('존재하지 않는 task worktree cleanup-task 시 idempotent', async () => {
+    await expect(
+      worktreeCleanupTask({ groupKey: 'auth', taskClientId: 'T-999', cwd: repo })
+    ).resolves.toBeUndefined()
   })
 })
