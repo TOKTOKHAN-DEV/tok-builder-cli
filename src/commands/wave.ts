@@ -57,4 +57,45 @@ export function computeNextWave(input: ComputeNextWaveInput): ComputeNextWaveRes
   }
 }
 
+export interface ValidateDisjointInput {
+  tasks: WaveTask[]
+}
+
+export interface DisjointConflict {
+  tasks: [string, string]  // [client_id_a, client_id_b]
+  files: string[]          // intersection files (path 기준)
+}
+
+export interface ValidateDisjointResult {
+  ok: boolean
+  conflicts: DisjointConflict[]
+}
+
+/**
+ * wave 안 task 들의 output_artifacts pairwise intersection 검증.
+ * 충돌 = 같은 file path 를 2+ task 가 변경. 모든 pair 의 intersection 보고.
+ * null / undefined output_artifacts = 빈 set (충돌 0).
+ * path 기준 비교 (kind 무관).
+ */
+export function validateDisjoint(input: ValidateDisjointInput): ValidateDisjointResult {
+  const conflicts: DisjointConflict[] = []
+  const tasks = input.tasks
+
+  for (let i = 0; i < tasks.length; i++) {
+    for (let j = i + 1; j < tasks.length; j++) {
+      const aPaths = new Set((tasks[i].output_artifacts ?? []).map((a) => a.path))
+      const bPaths = new Set((tasks[j].output_artifacts ?? []).map((a) => a.path))
+      const intersection = [...aPaths].filter((p) => bPaths.has(p))
+      if (intersection.length > 0) {
+        conflicts.push({
+          tasks: [tasks[i].client_id, tasks[j].client_id],
+          files: intersection,
+        })
+      }
+    }
+  }
+
+  return { ok: conflicts.length === 0, conflicts }
+}
+
 // commander 등록은 Task 14 에서.

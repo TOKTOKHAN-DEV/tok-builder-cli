@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeNextWave, type WaveTask } from '../wave'
+import { computeNextWave, validateDisjoint, type WaveTask } from '../wave'
 
 const baseTask: Omit<WaveTask, 'client_id' | 'status' | 'depends_on_client_ids' | 'output_artifacts'> = {
   id: 'uuid-x',
@@ -73,5 +73,65 @@ describe('computeNextWave', () => {
     ]
     const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
     expect(result.tasks).toEqual([])
+  })
+})
+
+describe('validateDisjoint', () => {
+  it('빈 task list — ok', () => {
+    const result = validateDisjoint({ tasks: [] })
+    expect(result.ok).toBe(true)
+    expect(result.conflicts).toEqual([])
+  })
+
+  it('1 task — ok (intersection 불가능)', () => {
+    const result = validateDisjoint({
+      tasks: [{ ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }] }],
+    })
+    expect(result.ok).toBe(true)
+  })
+
+  it('2 task disjoint — ok', () => {
+    const result = validateDisjoint({
+      tasks: [
+        { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }, { path: 'b.ts', kind: 'code' }] },
+        { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'c.ts', kind: 'code' }] },
+      ],
+    })
+    expect(result.ok).toBe(true)
+  })
+
+  it('2 task intersection — conflict 보고', () => {
+    const result = validateDisjoint({
+      tasks: [
+        { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }, { path: 'b.ts', kind: 'code' }] },
+        { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'b.ts', kind: 'code' }, { path: 'c.ts', kind: 'code' }] },
+      ],
+    })
+    expect(result.ok).toBe(false)
+    expect(result.conflicts).toEqual([{ tasks: ['T-001', 'T-002'], files: ['b.ts'] }])
+  })
+
+  it('3 task 다중 pair 충돌 — 모두 보고', () => {
+    const result = validateDisjoint({
+      tasks: [
+        { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }] },
+        { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }, { path: 'b.ts', kind: 'code' }] },
+        { ...baseTask, client_id: 'T-003', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'b.ts', kind: 'code' }] },
+      ],
+    })
+    expect(result.ok).toBe(false)
+    expect(result.conflicts).toHaveLength(2)
+    expect(result.conflicts).toContainEqual({ tasks: ['T-001', 'T-002'], files: ['a.ts'] })
+    expect(result.conflicts).toContainEqual({ tasks: ['T-002', 'T-003'], files: ['b.ts'] })
+  })
+
+  it('output_artifacts null / undefined task — 빈 set 으로 처리 (충돌 0)', () => {
+    const result = validateDisjoint({
+      tasks: [
+        { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: null },
+        { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }] },
+      ],
+    })
+    expect(result.ok).toBe(true)
   })
 })
