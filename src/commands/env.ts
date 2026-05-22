@@ -1,28 +1,37 @@
 import { Command } from 'commander'
+import { z, ZodError } from 'zod'
 
 import { requireConfig } from '../lib/config.js'
 import { upsertEnvLocal } from '../lib/env-local.js'
 
-interface SecretEntry {
-  key: string
-  value: string
-}
+const SECRET_KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/
+const SECRET_VALUE_DENY = /[\r\n\0]/
 
-interface SecretsResponse {
-  secrets: SecretEntry[]
-}
+const SecretsResponseSchema = z.object({
+  secrets: z.array(
+    z.object({
+      key: z.string().regex(SECRET_KEY_PATTERN, 'key 형식 위반 (^[A-Z][A-Z0-9_]{0,63}$)'),
+      value: z
+        .string()
+        .refine((v) => !SECRET_VALUE_DENY.test(v), 'value 에 newline/NUL 포함 금지 (.env.local 깨짐 방어)'),
+    }),
+  ),
+})
+
+export type SecretEntry = z.infer<typeof SecretsResponseSchema>['secrets'][number]
 
 /**
  * platform 의 `/api/agent/projects/[id]/secrets` GET — project_secrets 를 fetch.
  * 404 → 빈 배열 (등록 키 없음).
- * non-2xx (404 외) → throw.
+ * non-2xx (404 외) → throw (response body 노출 X — secret 누설 회피).
+ * zod schema 로 응답 검증 (defense in depth — key regex + value newline 차단).
  */
 export async function fetchProjectSecrets(
   platformBaseUrl: string,
   projectId: string,
   token: string,
 ): Promise<SecretEntry[]> {
-  const url = `${platformBaseUrl}/api/agent/projects/${projectId}/secrets`
+  const url = `${platformBaseUrl}/api/agent/projects/${encodeURIComponent(projectId)}/secrets`
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -31,15 +40,20 @@ export async function fetchProjectSecrets(
     return []
   }
   if (!response.ok) {
-    const body = await response.text()
-    throw new Error(`platform 응답 ${response.status}: ${body.slice(0, 200)}`)
+    throw new Error(`platform secrets 응답 실패: ${response.status} ${response.statusText}`)
   }
 
-  const data = (await response.json()) as Partial<SecretsResponse>
-  if (!Array.isArray(data.secrets)) {
-    throw new Error('platform 응답 형식 오류 — secrets 배열 없음')
+  const raw = (await response.json()) as unknown
+  try {
+    const parsed = SecretsResponseSchema.parse(raw)
+    return parsed.secrets
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const issues = err.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join(', ')
+      throw new Error(`platform 응답 secrets 검증 실패: ${issues}`)
+    }
+    throw err
   }
-  return data.secrets
 }
 
 export function envCommand(program: Command): void {
