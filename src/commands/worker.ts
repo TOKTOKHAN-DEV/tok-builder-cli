@@ -23,6 +23,34 @@ const SUB_STEP_RECOMMENDED_SKILL: Record<string, string> = Object.assign(Object.
 })
 const DEFAULT_RECOMMENDED_SKILL = 'tokb-codegen'
 
+// AI-DLC Stage B — sub_step → 권장 model 매핑.
+// SoT: tok-builder-template/.claude/skills/tokb-core-workflow.md (Stage B 표).
+// Object.create(null) — prototype pollution 방어.
+const SUB_STEP_RECOMMENDED_MODEL: Record<string, 'haiku' | 'sonnet'> = Object.assign(
+  Object.create(null),
+  {
+    build_test: 'haiku',
+    infra: 'haiku',
+    functional: 'sonnet',
+    nfr: 'sonnet',
+    codegen: 'sonnet',
+  },
+)
+const DEFAULT_RECOMMENDED_MODEL = 'sonnet' as const
+
+export function resolveRecommendedModel(
+  rawSubStep: string | null | undefined,
+  escalatedToModel: 'haiku' | 'sonnet' | undefined,
+): 'haiku' | 'sonnet' {
+  // Stage B: events meta 의 escalated_to_model 우선
+  if (escalatedToModel === 'haiku' || escalatedToModel === 'sonnet') {
+    return escalatedToModel
+  }
+  const sub = sanitizeSubStep(rawSubStep)
+  if (sub === null || sub === 'invalid') return DEFAULT_RECOMMENDED_MODEL
+  return SUB_STEP_RECOMMENDED_MODEL[sub] ?? DEFAULT_RECOMMENDED_MODEL
+}
+
 // sub_step 값이 platform 응답에서 통제 불가 — newline / 닫는 bracket 등이 박혀
 // prompt 의 header 영역 (data fence 밖) 으로 누출되면 instruction injection 가능.
 // allow-list 패턴 (lowercase / underscore / digit) 만 통과, 그 외는 'invalid' 로 sanitize.

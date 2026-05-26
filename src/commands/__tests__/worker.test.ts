@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { buildWorkerPrompt, workerPromptAction, workerPromptActionByTask } from '../worker'
+import { buildWorkerPrompt, workerPromptAction, workerPromptActionByTask, resolveRecommendedModel } from '../worker'
 import { requireField } from '../../lib/config.js'
 import { getPlanState } from '../../lib/api.js'
 
@@ -373,5 +373,59 @@ describe('workerPromptActionByTask (Stage A — task 단위 prompt)', () => {
     await expect(
       workerPromptActionByTask({ task: 'uuid-missing', worktree: '/p' })
     ).rejects.toThrow(/task uuid-missing.*없음/)
+  })
+})
+
+describe('resolveRecommendedModel (Stage B — sub_step → model 매핑)', () => {
+  // 5 sub_step 각각 매핑
+  it('build_test → haiku', () => {
+    expect(resolveRecommendedModel('build_test', undefined)).toBe('haiku')
+  })
+
+  it('infra → haiku', () => {
+    expect(resolveRecommendedModel('infra', undefined)).toBe('haiku')
+  })
+
+  it('functional → sonnet', () => {
+    expect(resolveRecommendedModel('functional', undefined)).toBe('sonnet')
+  })
+
+  it('nfr → sonnet', () => {
+    expect(resolveRecommendedModel('nfr', undefined)).toBe('sonnet')
+  })
+
+  it('codegen → sonnet', () => {
+    expect(resolveRecommendedModel('codegen', undefined)).toBe('sonnet')
+  })
+
+  // fallback
+  it('unknown sub_step → sonnet (DEFAULT)', () => {
+    expect(resolveRecommendedModel('unknown_xyz', undefined)).toBe('sonnet')
+  })
+
+  it('null sub_step → sonnet (DEFAULT)', () => {
+    expect(resolveRecommendedModel(null, undefined)).toBe('sonnet')
+  })
+
+  it('undefined sub_step → sonnet (DEFAULT)', () => {
+    expect(resolveRecommendedModel(undefined, undefined)).toBe('sonnet')
+  })
+
+  // prototype pollution 방어
+  it('constructor 키 → sonnet (prototype pollution 방어)', () => {
+    expect(resolveRecommendedModel('constructor', undefined)).toBe('sonnet')
+  })
+
+  it('__proto__ 키 → sonnet (prototype pollution 방어)', () => {
+    expect(resolveRecommendedModel('__proto__', undefined)).toBe('sonnet')
+  })
+
+  // escalated_to_model 우선 흐름
+  it('escalated_to_model=sonnet 명시 → sub_step build_test 여도 sonnet 반환', () => {
+    expect(resolveRecommendedModel('build_test', 'sonnet')).toBe('sonnet')
+  })
+
+  it('escalated_to_model=haiku 명시 → sub_step functional 여도 haiku 반환', () => {
+    expect(resolveRecommendedModel('functional', 'haiku')).toBe('haiku')
   })
 })
