@@ -121,6 +121,9 @@ export type PlanStateResponse = {
       commit_sha_code: string | null
       evidence_note: string | null
       sub_step?: string | null
+      last_failed_event_meta?: {
+        escalated_to_model?: 'haiku' | 'sonnet'
+      } | null
       output_artifacts?: Array<{ path: string; kind: 'spec' | 'code' | 'doc' | 'config' | 'test' | 'other' }> | null
       depends_on_client_ids?: string[] | null
     }>

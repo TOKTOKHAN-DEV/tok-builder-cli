@@ -129,7 +129,9 @@ export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
       const subStep = sanitizeSubStep(t.sub_step)
       const recommendedSkill =
         (subStep && SUB_STEP_RECOMMENDED_SKILL[subStep]) ?? DEFAULT_RECOMMENDED_SKILL
-      const subStepLine = `[sub_step: ${subStep ?? '-'} | 권장 SKILL: ${recommendedSkill}]`
+      const escalatedTo = t.last_failed_event_meta?.escalated_to_model
+      const recommendedModel = resolveRecommendedModel(t.sub_step, escalatedTo)
+      const subStepLine = `[sub_step: ${subStep ?? '-'} | 권장 SKILL: ${recommendedSkill} | 권장 model: ${recommendedModel}]`
       return `### ${t.client_id} (uuid: ${t.id})
 ${subStepLine}
 

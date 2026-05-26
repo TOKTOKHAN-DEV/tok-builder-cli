@@ -178,8 +178,8 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).not.toMatch(/\[sub_step:[^\]]*]\n## /)
     expect(prompt).not.toContain('[object Object]')
     expect(prompt).not.toContain('function Object')
-    // 4 케이스 모두 'invalid' 로 sanitize + default 'tokb-codegen'
-    const invalidLineCount = (prompt.match(/\[sub_step: invalid \| 권장 SKILL: tokb-codegen\]/g) ?? []).length
+    // 4 케이스 모두 'invalid' 로 sanitize + default 'tokb-codegen' + default model 'sonnet'
+    const invalidLineCount = (prompt.match(/\[sub_step: invalid \| 권장 SKILL: tokb-codegen \| 권장 model: sonnet\]/g) ?? []).length
     expect(invalidLineCount).toBe(4)
   })
 
@@ -192,11 +192,28 @@ describe('buildWorkerPrompt', () => {
       { ...sampleCodeTask, id: 'u-unknown', sub_step: 'unknown_xyz' },
     ]
     const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'core-impl', worktreePath: '/p', tasks })
-    expect(prompt).toContain('[sub_step: codegen | 권장 SKILL: tokb-codegen]')
-    expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner]')
-    expect(prompt).toContain('[sub_step: - | 권장 SKILL: tokb-codegen]')
-    expect(prompt).toContain('[sub_step: functional | 권장 SKILL: tokb-codegen]')
-    expect(prompt).toContain('[sub_step: unknown_xyz | 권장 SKILL: tokb-codegen]')
+    expect(prompt).toContain('[sub_step: codegen | 권장 SKILL: tokb-codegen | 권장 model: sonnet]')
+    expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner | 권장 model: haiku]')
+    expect(prompt).toContain('[sub_step: - | 권장 SKILL: tokb-codegen | 권장 model: sonnet]')
+    expect(prompt).toContain('[sub_step: functional | 권장 SKILL: tokb-codegen | 권장 model: sonnet]')
+    expect(prompt).toContain('[sub_step: unknown_xyz | 권장 SKILL: tokb-codegen | 권장 model: sonnet]')
+  })
+
+  it('각 task 줄에 권장 model annotation 포함 — sub_step 매핑 기본 흐름 (Stage B)', () => {
+    const task: WorkerTask = { ...sampleCodeTask, id: 'u-build-test', sub_step: 'build_test' }
+    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'core-impl', worktreePath: '/p', tasks: [task] })
+    expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner | 권장 model: haiku]')
+  })
+
+  it('escalated_to_model=sonnet 시 sub_step 매핑 무시 — prompt 안 sonnet 박힘 (Stage B)', () => {
+    const task: WorkerTask = {
+      ...sampleCodeTask,
+      id: 'u-build-test-esc',
+      sub_step: 'build_test',
+      last_failed_event_meta: { escalated_to_model: 'sonnet' },
+    }
+    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'core-impl', worktreePath: '/p', tasks: [task] })
+    expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner | 권장 model: sonnet]')
   })
 })
 
