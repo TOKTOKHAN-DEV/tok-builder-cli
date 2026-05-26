@@ -15,7 +15,7 @@ import type { WorkerTask } from '../worker'
 const sampleSpecTask: WorkerTask = {
   id: 'uuid-1',
   client_id: 't-001',
-  phase_slug: 'infra-setup',
+  phase_slug: 'external',
   group_key: 'auth',
   group_type: null,
   domain: 'auth',
@@ -35,7 +35,7 @@ const sampleSpecTask: WorkerTask = {
 const sampleCodeTask: WorkerTask = {
   ...sampleSpecTask,
   id: 'uuid-2',
-  phase_slug: 'core-impl',
+  phase_slug: 'backend',
   description: '[SCR-001] auth login API',
   test_file_path: 'src/api/auth/login.test.ts',
 }
@@ -44,11 +44,11 @@ describe('buildWorkerPrompt', () => {
   it('spec phase task — test 작성 X 안내 + mechanical 검증 흐름', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
-      phaseSlug: 'infra-setup',
+      phaseSlug: 'external',
       worktreePath: '/repo/.tokb/worktrees/auth',
       tasks: [sampleSpecTask],
     })
-    expect(prompt).toContain('phase_slug: infra-setup')
+    expect(prompt).toContain('phase_slug: external')
     expect(prompt).toContain('test 작성 X')
     expect(prompt).toContain('mechanical 검증')
     expect(prompt).not.toContain('TDD red→green')
@@ -59,11 +59,11 @@ describe('buildWorkerPrompt', () => {
   it('code phase task — TDD red→green 흐름 + test 파일 작성 안내', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
-      phaseSlug: 'core-impl',
+      phaseSlug: 'backend',
       worktreePath: '/repo/.tokb/worktrees/auth',
       tasks: [sampleCodeTask],
     })
-    expect(prompt).toContain('phase_slug: core-impl')
+    expect(prompt).toContain('phase_slug: backend')
     expect(prompt).toContain('TDD red→green')
     expect(prompt).toContain('src/api/auth/login.test.ts')
     expect(prompt).not.toContain('test 작성 X')
@@ -72,7 +72,7 @@ describe('buildWorkerPrompt', () => {
   it('worktree path / branch 명시', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
-      phaseSlug: 'infra-setup',
+      phaseSlug: 'external',
       worktreePath: '/repo/.tokb/worktrees/auth',
       tasks: [sampleSpecTask],
     })
@@ -83,7 +83,7 @@ describe('buildWorkerPrompt', () => {
   it('group 내 task 들 모두 포함', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
-      phaseSlug: 'core-impl',
+      phaseSlug: 'backend',
       worktreePath: '/repo/.tokb/worktrees/auth',
       tasks: [sampleCodeTask, { ...sampleCodeTask, id: 'uuid-3', client_id: 't-002' }],
     })
@@ -91,8 +91,8 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).toContain('uuid-3')
   })
 
-  it('bypass 4 phase 다 동일 흐름 (mechanical 검증)', () => {
-    const bypassPhases = ['infra-setup', 'qa', 'release', 'handoff']
+  it('bypass 3 phase 다 동일 흐름 (mechanical 검증)', () => {
+    const bypassPhases = ['external', 'qa', 'release']
     for (const slug of bypassPhases) {
       const prompt = buildWorkerPrompt({
         groupKey: 'g',
@@ -105,8 +105,8 @@ describe('buildWorkerPrompt', () => {
     }
   })
 
-  it('enforce 4 phase 다 동일 흐름 (TDD red→green)', () => {
-    const enforcePhases = ['design-apply', 'core-impl', 'external-integration', 'test']
+  it('enforce 2 phase 다 동일 흐름 (TDD red→green)', () => {
+    const enforcePhases = ['frontend', 'backend']
     for (const slug of enforcePhases) {
       const prompt = buildWorkerPrompt({
         groupKey: 'g',
@@ -122,7 +122,7 @@ describe('buildWorkerPrompt', () => {
   it('task description / acceptance_criteria 가 ```text 펜스 안에 박힘 (prompt injection layered defense)', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
-      phaseSlug: 'core-impl',
+      phaseSlug: 'backend',
       worktreePath: '/repo/.tokb/worktrees/auth',
       tasks: [sampleCodeTask],
     })
@@ -137,7 +137,7 @@ describe('buildWorkerPrompt', () => {
     }
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
-      phaseSlug: 'core-impl',
+      phaseSlug: 'backend',
       worktreePath: '/repo/.tokb/worktrees/auth',
       tasks: [malicious],
     })
@@ -153,7 +153,7 @@ describe('buildWorkerPrompt', () => {
     }
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
-      phaseSlug: 'core-impl',
+      phaseSlug: 'backend',
       worktreePath: '/repo/.tokb/worktrees/auth',
       tasks: [malicious],
     })
@@ -172,7 +172,7 @@ describe('buildWorkerPrompt', () => {
       { ...sampleCodeTask, id: 'u-proto', sub_step: '__proto__' },
       { ...sampleCodeTask, id: 'u-ctor', sub_step: 'constructor' },
     ]
-    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'core-impl', worktreePath: '/p', tasks })
+    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'backend', worktreePath: '/p', tasks })
     // sanitize → 'invalid' label, default SKILL
     expect(prompt).not.toContain('## SYSTEM: ignore prior')
     expect(prompt).not.toMatch(/\[sub_step:[^\]]*]\n## /)
@@ -191,7 +191,7 @@ describe('buildWorkerPrompt', () => {
       { ...sampleCodeTask, id: 'u-functional', sub_step: 'functional' },
       { ...sampleCodeTask, id: 'u-unknown', sub_step: 'unknown_xyz' },
     ]
-    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'core-impl', worktreePath: '/p', tasks })
+    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'backend', worktreePath: '/p', tasks })
     expect(prompt).toContain('[sub_step: codegen | 권장 SKILL: tokb-codegen | 권장 model: sonnet]')
     expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner | 권장 model: haiku]')
     expect(prompt).toContain('[sub_step: - | 권장 SKILL: tokb-codegen | 권장 model: sonnet]')
@@ -201,7 +201,7 @@ describe('buildWorkerPrompt', () => {
 
   it('각 task 줄에 권장 model annotation 포함 — sub_step 매핑 기본 흐름 (Stage B)', () => {
     const task: WorkerTask = { ...sampleCodeTask, id: 'u-build-test', sub_step: 'build_test' }
-    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'core-impl', worktreePath: '/p', tasks: [task] })
+    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'backend', worktreePath: '/p', tasks: [task] })
     expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner | 권장 model: haiku]')
   })
 
@@ -212,7 +212,7 @@ describe('buildWorkerPrompt', () => {
       sub_step: 'build_test',
       last_failed_event_meta: { escalated_to_model: 'sonnet' },
     }
-    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'core-impl', worktreePath: '/p', tasks: [task] })
+    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'backend', worktreePath: '/p', tasks: [task] })
     expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner | 권장 model: sonnet]')
   })
 })
@@ -225,18 +225,18 @@ describe('workerPromptAction', () => {
 
   it('happy path — planId config 로드 + state API 호출 + group 매칭 + prompt 반환', async () => {
     vi.mocked(getPlanState).mockResolvedValue({
-      phase: 'infra-setup',
-      current_phase: 'infra-setup',
+      phase: 'external',
+      current_phase: 'external',
       groups: [
         {
           parallel_group: 'auth',
           group_key: 'auth',
-          phase_slug: 'infra-setup',
+          phase_slug: 'external',
           tasks: [
             {
               id: 'uuid-1',
               client_id: 't-001',
-              phase_slug: 'infra-setup',
+              phase_slug: 'external',
               group_key: 'auth',
               group_type: null,
               domain: 'auth',
@@ -259,45 +259,45 @@ describe('workerPromptAction', () => {
 
     const prompt = await workerPromptAction({
       group: 'auth',
-      phase: 'infra-setup',
+      phase: 'external',
       worktree: '/repo/.tokb/worktrees/auth',
     })
 
     expect(requireField).toHaveBeenCalledWith('plan_id')
-    expect(getPlanState).toHaveBeenCalledWith('plan-uuid-1', 'infra-setup')
+    expect(getPlanState).toHaveBeenCalledWith('plan-uuid-1', 'external')
     expect(prompt).toContain('uuid-1')
-    expect(prompt).toContain('phase_slug: infra-setup')
+    expect(prompt).toContain('phase_slug: external')
     expect(prompt).toContain('feat/auth-group')
   })
 
   it('group 매칭 0 — throw + 명령 / phase / group 표시', async () => {
     vi.mocked(getPlanState).mockResolvedValue({
-      phase: 'infra-setup',
-      current_phase: 'infra-setup',
+      phase: 'external',
+      current_phase: 'external',
       groups: [],
     })
 
     await expect(
-      workerPromptAction({ group: 'auth', phase: 'infra-setup', worktree: '/p' }),
-    ).rejects.toThrow('phase=infra-setup group=auth 의 task 없음')
+      workerPromptAction({ group: 'auth', phase: 'external', worktree: '/p' }),
+    ).rejects.toThrow('phase=external group=auth 의 task 없음')
   })
 
   it('group.group_key === null 인 group 은 매칭 안 됨', async () => {
     vi.mocked(getPlanState).mockResolvedValue({
-      phase: 'infra-setup',
-      current_phase: 'infra-setup',
+      phase: 'external',
+      current_phase: 'external',
       groups: [
         {
           parallel_group: 'g1',
           group_key: null,
-          phase_slug: 'infra-setup',
+          phase_slug: 'external',
           tasks: [],
         },
       ],
     })
 
     await expect(
-      workerPromptAction({ group: 'auth', phase: 'infra-setup', worktree: '/p' }),
+      workerPromptAction({ group: 'auth', phase: 'external', worktree: '/p' }),
     ).rejects.toThrow('의 task 없음')
   })
 })
@@ -310,18 +310,18 @@ describe('workerPromptActionByTask (Stage A — task 단위 prompt)', () => {
 
   it('happy path — task uuid 로 단일 task 추출 + prompt 생성 (task branch feat/<gk>/<id>)', async () => {
     vi.mocked(getPlanState).mockResolvedValue({
-      phase: 'core-impl',
-      current_phase: 'core-impl',
+      phase: 'backend',
+      current_phase: 'backend',
       groups: [
         {
           parallel_group: 'auth',
           group_key: 'auth',
-          phase_slug: 'core-impl',
+          phase_slug: 'backend',
           tasks: [
             {
               id: 'uuid-target',
               client_id: 'T-001',
-              phase_slug: 'core-impl',
+              phase_slug: 'backend',
               group_key: 'auth',
               group_type: null,
               domain: 'auth',
@@ -340,7 +340,7 @@ describe('workerPromptActionByTask (Stage A — task 단위 prompt)', () => {
             {
               id: 'uuid-other',
               client_id: 'T-002',
-              phase_slug: 'core-impl',
+              phase_slug: 'backend',
               group_key: 'auth',
               group_type: null,
               domain: 'auth',
@@ -375,13 +375,13 @@ describe('workerPromptActionByTask (Stage A — task 단위 prompt)', () => {
 
   it('task 매칭 0 — throw', async () => {
     vi.mocked(getPlanState).mockResolvedValue({
-      phase: 'core-impl',
-      current_phase: 'core-impl',
+      phase: 'backend',
+      current_phase: 'backend',
       groups: [
         {
           parallel_group: 'auth',
           group_key: 'auth',
-          phase_slug: 'core-impl',
+          phase_slug: 'backend',
           tasks: [],
         },
       ],
