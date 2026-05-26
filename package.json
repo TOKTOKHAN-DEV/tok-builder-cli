@@ -13,9 +13,11 @@
     "tokb": "./dist/cli.js"
   },
   "scripts": {
+    "preinstall": "npx -y only-allow npm",
     "build": "tsc",
     "test": "vitest run"
   },
+  "packageManager": "npm@10.0.0",
   "dependencies": {
     "commander": "^12.0.0",
     "culori": "^4.0.0",

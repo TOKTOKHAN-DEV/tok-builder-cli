@@ -23,8 +23,7 @@ runs `npm install`, and finalizes `.tokb/config.json` via `tokb init`.
 ## Manual install
 
 ```bash
-pnpm add -g @toktokhan-dev/tok-builder-cli
-# or: npm install -g @toktokhan-dev/tok-builder-cli
+npm install -g @toktokhan-dev/tok-builder-cli
 ```
 
 (Requires `~/.npmrc` with `@toktokhan-dev:registry=https://npm.pkg.github.com`
