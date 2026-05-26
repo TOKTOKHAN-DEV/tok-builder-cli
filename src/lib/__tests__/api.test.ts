@@ -93,15 +93,15 @@ describe('api', () => {
   it('getPlanState calls GET state with phase query', async () => {
     const stub = vi.fn(async () => ({
       ok: true, status: 200,
-      json: async () => ({ phase: 'core-impl', current_phase: 'core-impl', groups: [] }),
+      json: async () => ({ phase: 'backend', current_phase: 'backend', groups: [] }),
       text: async () => '',
     }))
     vi.stubGlobal('fetch', stub)
 
-    await getPlanState('plan-1', 'core-impl')
+    await getPlanState('plan-1', 'backend')
 
     expect(stub).toHaveBeenCalledWith(
-      'https://example.com/api/agent/plans/plan-1/state?phase=core-impl',
+      'https://example.com/api/agent/plans/plan-1/state?phase=backend',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ Authorization: 'Bearer tokb_apt_test' }),
@@ -112,7 +112,7 @@ describe('api', () => {
   it('getPlanState without phase omits query param', async () => {
     const stub = vi.fn(async (..._args: unknown[]) => ({
       ok: true, status: 200,
-      json: async () => ({ phase: 'infra-setup', current_phase: 'infra-setup', groups: [] }),
+      json: async () => ({ phase: 'external', current_phase: 'external', groups: [] }),
       text: async () => '',
     }))
     vi.stubGlobal('fetch', stub)
@@ -128,17 +128,17 @@ describe('api', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true, status: 200,
       json: async () => ({
-        phase: 'core-impl',
-        current_phase: 'core-impl',
+        phase: 'backend',
+        current_phase: 'backend',
         groups: [
           {
             parallel_group: 'auth',
             group_key: 'auth',
-            phase_slug: 'core-impl',
+            phase_slug: 'backend',
             tasks: [{
               id: 't1',
               client_id: 'c1',
-              phase_slug: 'core-impl',
+              phase_slug: 'backend',
               group_key: 'auth',
               domain: 'auth',
               description: 'A description',
@@ -153,7 +153,7 @@ describe('api', () => {
       text: async () => '',
     })))
 
-    const res = await getPlanState('plan-1', 'core-impl')
+    const res = await getPlanState('plan-1', 'backend')
     expect(res.groups).toHaveLength(1)
     expect(res.groups[0].parallel_group).toBe('auth')
     expect(res.groups[0].tasks[0].id).toBe('t1')
@@ -161,17 +161,17 @@ describe('api', () => {
 
   it('shape guard — id 누락 응답 → zod throw', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
-      phase: 'core-impl',
-      current_phase: 'core-impl',
+      phase: 'backend',
+      current_phase: 'backend',
       groups: [
         {
           parallel_group: 'auth',
           group_key: 'auth',
-          phase_slug: 'core-impl',
+          phase_slug: 'backend',
           tasks: [{
             // id 누락
             client_id: 't-001',
-            phase_slug: 'core-impl',
+            phase_slug: 'backend',
             group_key: 'auth',
             domain: 'auth',
             description: 'x',
@@ -181,7 +181,7 @@ describe('api', () => {
         },
       ],
     })))
-    await expect(getPlanState('plan-1', 'core-impl')).rejects.toThrow()
+    await expect(getPlanState('plan-1', 'backend')).rejects.toThrow()
   })
 
   it('throws TokbAuthError on 401', async () => {

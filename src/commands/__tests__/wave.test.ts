@@ -9,7 +9,7 @@ import { computeNextWave, validateDisjoint, mergeWave, type WaveTask } from '../
 
 const baseTask: Omit<WaveTask, 'client_id' | 'status' | 'depends_on_client_ids' | 'output_artifacts'> = {
   id: 'uuid-x',
-  phase_slug: 'core-impl',
+  phase_slug: 'backend',
   group_key: 'auth',
   description: '',
   acceptance_criteria: '',
@@ -18,7 +18,7 @@ const baseTask: Omit<WaveTask, 'client_id' | 'status' | 'depends_on_client_ids' 
 
 describe('computeNextWave', () => {
   it('빈 task list — 빈 wave 반환', () => {
-    const result = computeNextWave({ tasks: [], groupKey: 'auth', phaseSlug: 'core-impl' })
+    const result = computeNextWave({ tasks: [], groupKey: 'auth', phaseSlug: 'backend' })
     expect(result.tasks).toEqual([])
   })
 
@@ -27,7 +27,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-001', status: 'done', depends_on_client_ids: [], output_artifacts: [] },
       { ...baseTask, client_id: 'T-002', status: 'done', depends_on_client_ids: [], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
     expect(result.tasks).toEqual([])
   })
 
@@ -37,7 +37,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'b.ts', kind: 'code' }] },
       { ...baseTask, client_id: 'T-003', status: 'pending', depends_on_client_ids: ['T-001'], output_artifacts: [{ path: 'c.ts', kind: 'code' }] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
     const ids = result.tasks.map((t) => t.client_id).sort()
     expect(ids).toEqual(['T-001', 'T-002'])
   })
@@ -49,7 +49,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-003', status: 'pending', depends_on_client_ids: ['T-001'], output_artifacts: [{ path: 'c.ts', kind: 'code' }] },
       { ...baseTask, client_id: 'T-004', status: 'pending', depends_on_client_ids: ['T-001', 'T-002'], output_artifacts: [{ path: 'd.ts', kind: 'code' }] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
     const ids = result.tasks.map((t) => t.client_id).sort()
     expect(ids).toEqual(['T-003', 'T-004'])
   })
@@ -59,7 +59,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-001', group_key: 'auth', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
       { ...baseTask, client_id: 'T-002', group_key: 'vehicle', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
     expect(result.tasks.map((t) => t.client_id)).toEqual(['T-001'])
   })
 
@@ -68,7 +68,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-001', status: 'blocked', depends_on_client_ids: [], output_artifacts: [] },
       { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
     expect(result.tasks.map((t) => t.client_id)).toEqual(['T-002'])
   })
 
@@ -77,7 +77,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: ['T-002'], output_artifacts: [] },
       { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: ['T-001'], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
     expect(result.tasks).toEqual([])
   })
 
@@ -85,7 +85,7 @@ describe('computeNextWave', () => {
     const tasks: WaveTask[] = [
       { ...baseTask, client_id: 'T-001', status: 'done', depends_on_client_ids: [], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
     expect(result.wave_index).toBe(-1)
   })
 
@@ -93,7 +93,7 @@ describe('computeNextWave', () => {
     const tasks: WaveTask[] = [
       { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'core-impl' })
+    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
     expect(result.wave_index).toBeGreaterThan(0)
   })
 })
