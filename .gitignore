@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# cli repo 는 npm SoT — pnpm / yarn lockfile 차단 (preinstall hook 도 강제)
+pnpm-lock.yaml
+yarn.lock
