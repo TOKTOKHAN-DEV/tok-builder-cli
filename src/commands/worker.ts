@@ -5,12 +5,12 @@ import { requireField } from '../lib/config.js'
 
 // ⚠️ pj-platform 의 lib/build-plan/constants.ts TDD_BYPASS_PHASES 와 동기 필수.
 // phase set 변경 시 양쪽 같이 업데이트. (cli 와 platform 의 drift 방지)
-// Phase 1 (design-spec) 제거 후 — #8 (4 phase: infra-setup / qa / release / handoff).
+// 5 phase 재설계 — bypass 3 종: external (외부 키 발급 / spec) / qa / release.
+// enforce 영역: frontend / backend (TDD red→green).
 const TDD_BYPASS_PHASES = new Set<string>([
-  'infra-setup',
+  'external',
   'qa',
   'release',
-  'handoff',
 ])
 
 // ⚠️ AI-DLC Stage 3 — sub_step → 권장 worker SKILL 매핑.
