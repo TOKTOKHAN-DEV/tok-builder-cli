@@ -147,6 +147,9 @@ const PlanStateTaskShape = z.looseObject({
     kind: z.enum(['spec', 'code', 'doc', 'config', 'test', 'other']),
   }).loose()).nullable().optional(),
   depends_on_client_ids: z.array(z.string()).nullable().optional(),
+  last_failed_event_meta: z.object({
+    escalated_to_model: z.enum(['haiku', 'sonnet']).optional(),
+  }).nullable().optional(),
 })
 
 const PlanStateGroupShape = z.looseObject({
