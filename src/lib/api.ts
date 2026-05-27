@@ -70,6 +70,16 @@ export async function pushTaskProgress(
   })
 }
 
+export async function reportTaskCriteria(
+  taskId: string,
+  opts: { done?: number[]; undone?: number[] } = {},
+) {
+  return request('POST', `/api/agent/tasks/${taskId}/criteria`, {
+    done: opts.done ?? [],
+    undone: opts.undone ?? [],
+  })
+}
+
 export async function pushTaskArtifacts(
   taskId: string,
   artifacts: Array<{ path: string; kind: ArtifactKind }>,
