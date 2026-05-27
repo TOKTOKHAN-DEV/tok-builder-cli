@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.1] - 2026-05-27
+
+### Fixed
+
+- `tokb commits push` — git `%cI` 의 로컬 타임존 오프셋(예: `+09:00`)을 UTC `Z` 로 정규화 후 전송. platform `committed_at` 검증이 `z.iso.datetime()` 으로 offset 표기를 거부(`422 Invalid ISO datetime`)해 TDD enforce phase(frontend/backend)의 commit 등록 + `task progress done` 이 전부 막히던 버그 수정. 시각 instant 는 보존(표기만 UTC 변환)되어 test/code commit timestamp 순서 검증에 영향 없음. (`toUtcIso` 헬퍼 + 단위 테스트 추가)
+
 ## [0.16.1] - 2026-05-22
 
 ### Fixed
