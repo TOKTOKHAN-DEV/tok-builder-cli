@@ -1,9 +1,10 @@
 // 추론 게이트 — spec G1/G2/G3 (pj-platform docs/superpowers/specs/2026-05-27-inferred-gate-design.md)
-// ⚠️ SSOT: 이 파일이 게이트 로직 단일 출처. 변경 시 common/workflow-changes.md 의 동기 의무 참조.
+// ⚠️ SSOT: 이 파일이 게이트 로직 단일 출처. 변경 시 tok-builder-template 의
+//          common/workflow-changes.md "추론 게이트 동기 의무" 참조.
 
 interface InferredAccumulated {
-  analysis?: unknown
-  design_spec?: unknown
+  analysis?: unknown[]
+  design_spec?: unknown[]
 }
 interface PlanLike {
   inferred_fields?: unknown

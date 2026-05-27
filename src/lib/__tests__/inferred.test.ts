@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { countInferred, assertInferredAcked } from '../inferred.js'
+import { planUpsert } from '../api.js'
 
 describe('countInferred', () => {
   it('필드 없으면 0', () => {
@@ -28,11 +32,6 @@ describe('assertInferredAcked', () => {
     expect(() => assertInferredAcked({ inferred_fields: ['x'] }, true)).not.toThrow()
   })
 })
-
-import { planUpsert } from '../api.js'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 describe('planUpsert 게이트', () => {
   it('추론 ≥1 + ack 없음 → 네트워크 전 throw', async () => {
