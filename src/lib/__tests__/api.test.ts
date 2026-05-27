@@ -7,7 +7,7 @@ vi.mock('../config.js', () => ({
   })),
 }))
 
-import { pushTaskProgress, pushTaskArtifacts, getProjectState, getPlanState, pushCommit } from '../api.js'
+import { pushTaskProgress, pushTaskArtifacts, getProjectState, getPlanState, pushCommit, reportTaskCriteria } from '../api.js'
 import { TokbAuthError, TokbValidationError, TokbServerError } from '../errors.js'
 
 describe('api', () => {
@@ -67,6 +67,29 @@ describe('api', () => {
       status: 'in_progress',
       notes: 'starting',
     })
+  })
+
+  it('reportTaskCriteria posts done/undone indices', async () => {
+    await reportTaskCriteria('task-1', { done: [0, 1], undone: [2] })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://example.com/api/agent/tasks/task-1/criteria',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer tokb_apt_test',
+          'Content-Type': 'application/json',
+        }),
+        body: JSON.stringify({ done: [0, 1], undone: [2] }),
+      }),
+    )
+  })
+
+  it('reportTaskCriteria defaults to empty arrays', async () => {
+    await reportTaskCriteria('task-1')
+    expect(fetch).toHaveBeenCalledWith(
+      'https://example.com/api/agent/tasks/task-1/criteria',
+      expect.objectContaining({ body: JSON.stringify({ done: [], undone: [] }) }),
+    )
   })
 
   it('pushTaskArtifacts posts artifacts array', async () => {
