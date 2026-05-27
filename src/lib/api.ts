@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { z } from 'zod'
 import { requireConfig } from './config.js'
 import { TokbAuthError, TokbValidationError, TokbServerError } from './errors.js'
+import { assertInferredAcked } from './inferred.js'
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const cfg = await requireConfig()
@@ -197,9 +198,10 @@ export async function pushCommit(
   })
 }
 
-export async function planUpsert(planId: string, jsonPath: string) {
+export async function planUpsert(planId: string, jsonPath: string, opts: { ackInferred?: boolean } = {}) {
   if (!jsonPath.endsWith('.json')) throw new Error(`planUpsert: path must end with .json (got ${jsonPath})`)
   const body = JSON.parse(await readFile(jsonPath, 'utf-8'))
+  assertInferredAcked(body, opts.ackInferred ?? false)
   return request('POST', `/api/agent/plans/${planId}/upsert`, body)
 }
 
