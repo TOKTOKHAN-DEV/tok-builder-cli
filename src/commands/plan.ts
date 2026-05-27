@@ -8,10 +8,10 @@ export function planCommand(program: Command): void {
   plan
     .command('upsert <jsonPath>')
     .description('JSON 파일로 plan task 일괄 upsert')
-    .option('--ack-inferred', '추론 항목을 사용자가 승인했음 — 추론 있어도 upsert 진행')
+    .option('--ack-inferred', '추론 항목을 직접 확인·승인한 경우에만 사용 — 추론 있어도 upsert 진행')
     .action(async (jsonPath: string, opts: { ackInferred?: boolean }) => {
       const planId = await requireField('plan_id')
-      await planUpsert(planId, jsonPath, { ackInferred: opts.ackInferred })
+      await planUpsert(planId, jsonPath, { ackInferred: opts.ackInferred ?? false })
       console.log('✓ plan upsert 완료')
     })
 
