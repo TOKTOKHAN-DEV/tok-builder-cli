@@ -28,3 +28,21 @@ describe('assertInferredAcked', () => {
     expect(() => assertInferredAcked({ inferred_fields: ['x'] }, true)).not.toThrow()
   })
 })
+
+import { planUpsert } from '../api.js'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+describe('planUpsert 게이트', () => {
+  it('추론 ≥1 + ack 없음 → 네트워크 전 throw', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tokb-plan-'))
+    try {
+      const p = join(dir, 'plan.json')
+      await writeFile(p, JSON.stringify({ inferred_fields: ['tasks[1].domain'], tasks: [] }))
+      await expect(planUpsert('plan-1', p, { ackInferred: false })).rejects.toThrow(/추론 항목 1건/)
+    } finally {
+      await rm(dir, { recursive: true })
+    }
+  })
+})
