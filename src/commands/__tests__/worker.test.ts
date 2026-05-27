@@ -41,7 +41,7 @@ const sampleCodeTask: WorkerTask = {
 }
 
 describe('buildWorkerPrompt', () => {
-  it('spec phase task — test 작성 X 안내 + mechanical 검증 흐름', () => {
+  it('spec phase task — test 작성 X 안내 + 정량 검증 흐름', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
       phaseSlug: 'external',
@@ -50,7 +50,7 @@ describe('buildWorkerPrompt', () => {
     })
     expect(prompt).toContain('phase_slug: external')
     expect(prompt).toContain('test 작성 X')
-    expect(prompt).toContain('mechanical 검증')
+    expect(prompt).toContain('정량 검증')
     expect(prompt).not.toContain('TDD red→green')
     expect(prompt).toContain('uuid-1')
     expect(prompt).toContain('specs/auth/data-model.md 존재')
@@ -91,7 +91,7 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).toContain('uuid-3')
   })
 
-  it('bypass 3 phase 다 동일 흐름 (mechanical 검증)', () => {
+  it('bypass 3 phase 다 동일 흐름 (정량 검증)', () => {
     const bypassPhases = ['external', 'qa', 'release']
     for (const slug of bypassPhases) {
       const prompt = buildWorkerPrompt({
@@ -100,7 +100,7 @@ describe('buildWorkerPrompt', () => {
         worktreePath: '/repo/.tokb/worktrees/g',
         tasks: [{ ...sampleSpecTask, phase_slug: slug }],
       })
-      expect(prompt).toContain('mechanical 검증')
+      expect(prompt).toContain('정량 검증')
       expect(prompt).not.toContain('TDD red→green')
     }
   })

@@ -97,14 +97,14 @@ export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
   const tddSection = isBypass
     ? `## TDD 흐름 — bypass (phase_slug: ${phaseSlug})
 
-이 phase 의 task 는 산출물이 md/config/수동 점검 영역. **test 작성 X**, mechanical 검증 (file 존재 / 형식 / grep) 으로 충분.
+이 phase 의 task 는 산출물이 md/config/수동 점검 영역. **test 작성 X**, 정량 검증 (file 존재 / 형식 / grep) 으로 충분.
 
 각 task 진행:
 1. \`tokb task progress <uuid> in_progress\`
 2. 산출물 작성 (md / config / spec)
-3. mechanical 검증 (예: ls / grep / schema check)
+3. 정량 검증 (예: ls / grep / schema check)
 4. commit (\`git commit -m "feat({group}): {title}"\`)
-5. \`tokb task progress <uuid> done --note "mechanical N/N 통과"\`
+5. \`tokb task progress <uuid> done --note "정량 N/N 통과"\`
 `
     : `## TDD 흐름 — enforce (phase_slug: ${phaseSlug})
 
@@ -117,7 +117,7 @@ export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
 5. 코드 작성 → green 확인
 6. code commit (\`git commit -m "feat(...): ..."\`)
 7. \`tokb commits push <task_id> <code_sha> --role code\`
-8. \`tokb task progress <uuid> done --commit-sha-test <test_sha> --commit-sha-code <code_sha> --note "mechanical N/N + semantic M/M 통과"\`
+8. \`tokb task progress <uuid> done --commit-sha-test <test_sha> --commit-sha-code <code_sha> --note "정량 N/N + 정성 M/M 통과"\`
 `
 
   const taskLines = tasks
@@ -178,7 +178,7 @@ ${tddSection}
 
 - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED
 - 완료 task: id 리스트
-- 각 task 의 결과 (mechanical 통과 N/N + semantic M/M)
+- 각 task 의 결과 (정량 통과 N/N + 정성 M/M)
 - self-review 발견
 `
 }
