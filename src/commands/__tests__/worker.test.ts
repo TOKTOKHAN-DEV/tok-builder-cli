@@ -91,8 +91,8 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).toContain('uuid-3')
   })
 
-  it('bypass 3 phase 다 동일 흐름 (정량 검증)', () => {
-    const bypassPhases = ['external', 'qa', 'release']
+  it('bypass 4 phase 다 동일 흐름 (정량 검증)', () => {
+    const bypassPhases = ['schema', 'external', 'qa', 'release']
     for (const slug of bypassPhases) {
       const prompt = buildWorkerPrompt({
         groupKey: 'g',
