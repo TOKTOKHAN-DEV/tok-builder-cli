@@ -250,7 +250,8 @@ export async function fetchDbTypes(projectId: string): Promise<string> {
     const text = await res.text()
     if (res.status === 401) throw new TokbAuthError()
     if (res.status >= 500) throw new TokbServerError(res.status)
-    throw new Error(`fetchDbTypes failed: ${res.status} ${text.slice(0, 200)}`)
+    const truncated = text.length > 200 ? text.slice(0, 200) + '…' : text
+    throw new Error(`fetchDbTypes failed: ${res.status} ${truncated}`)
   }
   return res.text()
 }
