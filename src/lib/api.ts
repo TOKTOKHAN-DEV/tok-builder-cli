@@ -230,3 +230,27 @@ export async function verifyToken(token: string, platformUrl: string): Promise<u
   }
   return res.json()
 }
+
+/**
+ * Schema phase types sync — 플랫폼이 Supabase Management API 를 proxy 해서
+ *   database.types.ts 텍스트를 반환. 워커는 DB 자격증명 없음.
+ *
+ * 응답은 text/plain (raw TS) — JSON 아님 → 기존 request() helper 우회.
+ */
+export async function fetchDbTypes(projectId: string): Promise<string> {
+  const cfg = await requireConfig()
+  const res = await fetch(
+    `${cfg.platform_base_url}/api/agent/projects/${projectId}/db-types`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${cfg.push_token}` },
+    },
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    if (res.status === 401) throw new TokbAuthError()
+    if (res.status >= 500) throw new TokbServerError(res.status)
+    throw new Error(`fetchDbTypes failed: ${res.status} ${text.slice(0, 200)}`)
+  }
+  return res.text()
+}
