@@ -7,7 +7,7 @@ vi.mock('../config.js', () => ({
   })),
 }))
 
-import { pushTaskProgress, pushTaskArtifacts, getProjectState, getPlanState, pushCommit, reportTaskCriteria } from '../api.js'
+import { pushTaskProgress, pushTaskArtifacts, getProjectState, getPlanState, pushCommit, reportTaskCriteria, fetchDbTypes } from '../api.js'
 import { TokbAuthError, TokbValidationError, TokbServerError } from '../errors.js'
 
 describe('api', () => {
@@ -290,5 +290,36 @@ describe('api', () => {
       expect(err).not.toBeInstanceOf(TokbServerError)
       expect((err as Error).message).toMatch(/418/)
     }
+  })
+})
+
+describe('fetchDbTypes', () => {
+  it('GET /api/agent/projects/<id>/db-types 호출 + 반환 텍스트', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+      new Response('export type Database = { public: { Tables: {} } }', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      }),
+    )
+
+    const result = await fetchDbTypes('proj-1')
+
+    expect(result).toContain('export type Database')
+    const url = (vi.mocked(fetch).mock.calls[0]?.[0] ?? '').toString()
+    expect(url).toMatch(/\/api\/agent\/projects\/proj-1\/db-types$/)
+  })
+
+  it('throws TokbAuthError on 401', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+      new Response('unauthorized', { status: 401 }),
+    )
+    await expect(fetchDbTypes('proj-1')).rejects.toBeInstanceOf(TokbAuthError)
+  })
+
+  it('throws TokbServerError on 500', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+      new Response('internal error', { status: 500 }),
+    )
+    await expect(fetchDbTypes('proj-1')).rejects.toBeInstanceOf(TokbServerError)
   })
 })
