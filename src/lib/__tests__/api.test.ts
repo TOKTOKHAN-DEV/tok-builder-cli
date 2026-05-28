@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest'
+import { afterEach, describe, expect, it, beforeEach, vi } from 'vitest'
 
 vi.mock('../config.js', () => ({
   requireConfig: vi.fn(async () => ({
@@ -294,6 +294,10 @@ describe('api', () => {
 })
 
 describe('fetchDbTypes', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('GET /api/agent/projects/<id>/db-types 호출 + 반환 텍스트', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce(
       new Response('export type Database = { public: { Tables: {} } }', {
