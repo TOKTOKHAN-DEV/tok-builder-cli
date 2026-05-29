@@ -16,9 +16,9 @@ const baseTask: Omit<WaveTask, 'client_id' | 'status' | 'depends_on_client_ids' 
   test_file_path: null,
 }
 
-describe('computeNextWave', () => {
+describe('computeNextWave (phase-wide)', () => {
   it('빈 task list — 빈 wave 반환', () => {
-    const result = computeNextWave({ tasks: [], groupKey: 'auth', phaseSlug: 'backend' })
+    const result = computeNextWave({ tasks: [], phaseSlug: 'backend' })
     expect(result.tasks).toEqual([])
   })
 
@@ -27,7 +27,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-001', status: 'done', depends_on_client_ids: [], output_artifacts: [] },
       { ...baseTask, client_id: 'T-002', status: 'done', depends_on_client_ids: [], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
     expect(result.tasks).toEqual([])
   })
 
@@ -37,7 +37,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'b.ts', kind: 'code' }] },
       { ...baseTask, client_id: 'T-003', status: 'pending', depends_on_client_ids: ['T-001'], output_artifacts: [{ path: 'c.ts', kind: 'code' }] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
     const ids = result.tasks.map((t) => t.client_id).sort()
     expect(ids).toEqual(['T-001', 'T-002'])
   })
@@ -49,17 +49,75 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-003', status: 'pending', depends_on_client_ids: ['T-001'], output_artifacts: [{ path: 'c.ts', kind: 'code' }] },
       { ...baseTask, client_id: 'T-004', status: 'pending', depends_on_client_ids: ['T-001', 'T-002'], output_artifacts: [{ path: 'd.ts', kind: 'code' }] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
     const ids = result.tasks.map((t) => t.client_id).sort()
     expect(ids).toEqual(['T-003', 'T-004'])
   })
 
-  it('group_key 필터 — 다른 group 의 task 무시', () => {
+  // 핵심 변경: group 경계를 넘어 phase 안 task 를 한 wave 로 병렬화.
+  // group A(1 task) + group B(5 task) → 6개 task 가 한 wave 에서 동시 병렬.
+  it('phase-wide — 서로 다른 group 의 task 도 같은 wave 로 (group A 1개 + group B 5개 = 6 병렬)', () => {
     const tasks: WaveTask[] = [
-      { ...baseTask, client_id: 'T-001', group_key: 'auth', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
-      { ...baseTask, client_id: 'T-002', group_key: 'vehicle', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
+      { ...baseTask, client_id: 'T-001', group_key: 'common', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'common.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-002', group_key: 'auth', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'auth1.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-003', group_key: 'auth', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'auth2.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-004', group_key: 'auth', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'auth3.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-005', group_key: 'auth', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'auth4.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-006', group_key: 'auth', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'auth5.ts', kind: 'code' }] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
+    const ids = result.tasks.map((t) => t.client_id).sort()
+    expect(ids).toEqual(['T-001', 'T-002', 'T-003', 'T-004', 'T-005', 'T-006'])
+  })
+
+  it('phase 필터 — 다른 phase 의 task 무시', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', phase_slug: 'backend', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-002', phase_slug: 'frontend', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'b.ts', kind: 'code' }] },
+    ]
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
+    expect(result.tasks.map((t) => t.client_id)).toEqual(['T-001'])
+  })
+
+  it('disjoint-aware — 파일 겹치는 task 는 같은 wave 에 안 넣고 다음 wave 로 미룸', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', group_key: 'auth', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'shared.ts', kind: 'code' }, { path: 'a.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-002', group_key: 'auth', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'shared.ts', kind: 'code' }, { path: 'b.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-003', group_key: 'vehicle', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'c.ts', kind: 'code' }] },
+    ]
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
+    // T-001 선택 → shared.ts 점유 → T-002 는 shared.ts 충돌로 이번 wave 제외. T-003 은 disjoint 라 포함.
+    const ids = result.tasks.map((t) => t.client_id).sort()
+    expect(ids).toEqual(['T-001', 'T-003'])
+  })
+
+  it('disjoint-aware — 디렉토리 경로(끝 /)는 겹쳐도 같은 wave 허용 (마이그레이션 식별자)', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', phase_slug: 'schema', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'supabase/migrations/', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-002', phase_slug: 'schema', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'supabase/migrations/', kind: 'code' }] },
+    ]
+    const result = computeNextWave({ tasks, phaseSlug: 'schema' })
+    const ids = result.tasks.map((t) => t.client_id).sort()
+    expect(ids).toEqual(['T-001', 'T-002'])
+  })
+
+  it('disjoint-aware — output_artifacts 빈/null task 여러 개는 모두 같은 wave (충돌 없음)', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
+      { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: null },
+      { ...baseTask, client_id: 'T-003', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }] },
+    ]
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
+    expect(result.tasks.map((t) => t.client_id).sort()).toEqual(['T-001', 'T-002', 'T-003'])
+  })
+
+  it('disjoint-aware — 비정규 경로(./a.ts vs a.ts)도 정규화 후 같은 파일로 충돌 처리', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: './a.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }] },
+    ]
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
+    // 정규화 후 같은 파일 → T-001 만 이번 wave, T-002 는 다음 wave
     expect(result.tasks.map((t) => t.client_id)).toEqual(['T-001'])
   })
 
@@ -68,7 +126,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-001', status: 'blocked', depends_on_client_ids: [], output_artifacts: [] },
       { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
     expect(result.tasks.map((t) => t.client_id)).toEqual(['T-002'])
   })
 
@@ -77,7 +135,7 @@ describe('computeNextWave', () => {
       { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: ['T-002'], output_artifacts: [] },
       { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: ['T-001'], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
     expect(result.tasks).toEqual([])
   })
 
@@ -85,7 +143,7 @@ describe('computeNextWave', () => {
     const tasks: WaveTask[] = [
       { ...baseTask, client_id: 'T-001', status: 'done', depends_on_client_ids: [], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
     expect(result.wave_index).toBe(-1)
   })
 
@@ -93,7 +151,7 @@ describe('computeNextWave', () => {
     const tasks: WaveTask[] = [
       { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
     ]
-    const result = computeNextWave({ tasks, groupKey: 'auth', phaseSlug: 'backend' })
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
     expect(result.wave_index).toBeGreaterThan(0)
   })
 })
