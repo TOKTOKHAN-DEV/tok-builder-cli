@@ -45,7 +45,7 @@ export function runCommand(program: Command): void {
 
   run
     .command('plan')
-    .description('phase 의 parallel_group 별 task 묶음 (OMC team 병렬 dispatch 용)')
+    .description('phase 의 parallel_group 별 task 묶음 (병렬 호출용)')
     .option('--phase <slug>', 'phase slug. 생략 시 current_phase')
     .action(async (opts: { phase?: string }) => {
       const planId = await requireField('plan_id')

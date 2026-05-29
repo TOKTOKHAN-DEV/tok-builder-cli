@@ -2,9 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { filterGroupTasks, groupCommand } from '../group';
 import { Command } from 'commander';
 
-// node:child_process, config, api mock
+// node:child_process, node:fs, config, api mock
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn(),
+}))
+// group complete 가 group worktree 존재를 existsSync 로 가드 → mock 으로 통과
+vi.mock('node:fs', () => ({
+  existsSync: vi.fn(() => true),
+  mkdirSync: vi.fn(),
+  readdirSync: vi.fn(() => []),
 }))
 vi.mock('../../lib/config.js', () => ({
   requireField: vi.fn(),
@@ -14,8 +20,12 @@ vi.mock('../../lib/api.js', () => ({
 }))
 
 import { execFileSync } from 'node:child_process'
+import path from 'node:path'
 import { requireField } from '../../lib/config.js'
 import { getProjectState } from '../../lib/api.js'
+
+// group complete 가 push/pr 을 실행하는 group worktree 경로
+const wtCwd = path.join(process.cwd(), '.tokb', 'worktrees', 'auth')
 
 const fakeTasks = [
   { id: 't1', group_key: 'auth', phase_slug: 'external', status: 'pending' as const },
@@ -149,15 +159,15 @@ describe('group complete', () => {
     await program.parseAsync(['group', 'complete', 'auth'], { from: 'user' })
 
     const calls = vi.mocked(execFileSync).mock.calls
-    // 첫 번째 호출: git push -u origin feat/auth-group
-    expect(calls[0]).toEqual(['git', ['push', '-u', 'origin', 'feat/auth-group'], { stdio: 'inherit' }])
-    // 두 번째 호출: gh pr create (stdio: 'pipe')
+    // 첫 번째 호출: git push -u origin feat/auth-group — group worktree cwd 에서
+    expect(calls[0]).toEqual(['git', ['push', '-u', 'origin', 'feat/auth-group'], { cwd: wtCwd, stdio: 'inherit' }])
+    // 두 번째 호출: gh pr create (group worktree cwd, stdio: 'pipe')
     expect(calls[1][0]).toBe('gh')
     expect(calls[1][1]).toContain('pr')
     expect(calls[1][1]).toContain('create')
     expect(calls[1][1]).toContain('feat/auth-group')
     expect(calls[1][1]).toContain('feat(auth): group complete')
-    expect(calls[1][2]).toMatchObject({ stdio: 'pipe' })
+    expect(calls[1][2]).toMatchObject({ cwd: wtCwd, stdio: 'pipe' })
 
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('PR 생성 완료'))
     consoleSpy.mockRestore()

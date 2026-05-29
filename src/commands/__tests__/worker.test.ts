@@ -69,6 +69,47 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).not.toContain('test 작성 X')
   })
 
+  it('schema phase — 마이그레이션 output_artifacts 안내 포함 (다른 bypass phase 엔 없음)', () => {
+    const schemaPrompt = buildWorkerPrompt({
+      groupKey: 'auth',
+      phaseSlug: 'schema',
+      worktreePath: '/repo/.tokb/worktrees/auth',
+      tasks: [{ ...sampleSpecTask, phase_slug: 'schema' }],
+    })
+    expect(schemaPrompt).toContain('supabase migration new')
+    expect(schemaPrompt).toContain('symlink 하지 마세요')
+    // external 등 다른 bypass phase 엔 마이그레이션 안내가 없어야 함
+    const externalPrompt = buildWorkerPrompt({
+      groupKey: 'auth',
+      phaseSlug: 'external',
+      worktreePath: '/repo/.tokb/worktrees/auth',
+      tasks: [sampleSpecTask],
+    })
+    expect(externalPrompt).not.toContain('supabase migration new')
+  })
+
+  it('bootstrap — 미등록 명령 tokb preflight 참조 제거 (install 은 유지)', () => {
+    const prompt = buildWorkerPrompt({
+      groupKey: 'auth',
+      phaseSlug: 'backend',
+      worktreePath: '/repo/.tokb/worktrees/auth',
+      tasks: [sampleCodeTask],
+    })
+    expect(prompt).not.toContain('tokb preflight')
+    expect(prompt).toContain('pnpm install --frozen-lockfile')
+  })
+
+  it('완료 보고 대상은 리더 (controller 표현 제거)', () => {
+    const prompt = buildWorkerPrompt({
+      groupKey: 'auth',
+      phaseSlug: 'backend',
+      worktreePath: '/repo/.tokb/worktrees/auth',
+      tasks: [sampleCodeTask],
+    })
+    expect(prompt).toContain('리더')
+    expect(prompt).not.toContain('controller')
+  })
+
   it('worktree path / branch 명시', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',

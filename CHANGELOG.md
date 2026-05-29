@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.20.0] - 2026-05-29
+
+### Changed
+
+- `tokb wave merge` / `tokb group complete` — **group worktree(`.tokb/worktrees/<gk>`) 안에서 실행**하도록 변경. group branch(`feat/<gk>-group`)를 group worktree 가 점유한 상태에서 leader 메인트리가 `git checkout` 을 시도해 `already checked out` 으로 막히던 충돌을 해소. push 의 pre-push hook 도 cherry-pick 된 통합 코드를 검사하게 됨(leader 메인트리는 안 건드림).
+- `tokb worktree create` — group worktree 생성 직후 `pnpm install --frozen-lockfile` 자동 실행(group complete push 시 pre-push hook 의 typecheck/test 에 필요한 node_modules 확보).
+- `tokb worktree cleanup` — 정리 견고화: 실패를 silent skip 하지 않고 보고(`failures`), `git worktree prune`, group branch 로컬 삭제까지 일원화해 **worktree/branch 누수 0**. `{ removedWorktrees, removedBranches, failures }` 반환.
+- `tokb wave validate-disjoint` — `output_artifacts` 의 디렉토리 경로(끝이 `/`)는 겹침 검사에서 제외. 마이그레이션 task 는 timestamp 파일이라 plan 시점에 경로를 못 박으므로 `supabase/migrations/` 디렉토리로 명시한다.
+
+### Fixed
+
+- worker prompt 의 미등록 명령 `tokb preflight` 참조 제거(bootstrap 4→3 단계 — `runPreflight` 는 `init` 내부 전용).
+
+### 기타
+
+- 사용자 노출 문구 한글화: 외주/오케스트레이션 제거(`tokb --help` 첫 줄), `dispatch`→호출, `controller`→리더, `disjoint`(산문)→겹침.
+- schema phase worker prompt 에 마이그레이션 `output_artifacts` 안내 추가(디렉토리는 식별자일 뿐, `supabase migration new` 로 생성·그 경로 직접 생성/symlink 금지).
+
 ## [0.18.1] - 2026-05-27
 
 ### Fixed
