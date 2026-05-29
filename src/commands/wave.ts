@@ -25,7 +25,6 @@ export interface WaveTask {
 
 export interface ComputeNextWaveInput {
   tasks: WaveTask[]
-  groupKey: string
   phaseSlug: string
 }
 
@@ -35,27 +34,54 @@ export interface ComputeNextWaveResult {
 }
 
 /**
- * 다음 wave 의 task 집합 반환.
- * 정의: status='pending' + 모든 depends_on_client_ids 의 task 가 같은 task list 안에서 status='done'.
- * 순환 의존성 / blocked / 다른 group / 다른 phase 는 wave 후보에서 제외.
+ * task 가 실제로 변경하는 file path 들 (디렉토리 식별자 끝 `/` 는 제외 — validateDisjoint 와 동일 규칙).
+ * 끝 `/` 를 먼저 거른 뒤 path.posix.normalize 로 정규화 — `./a.ts` 와 `a.ts`, `src/../src/a.ts`
+ * 같은 비정규 표기가 같은 파일을 다른 것으로 보아 disjoint 충돌(같은 파일 동시 변경)을 놓치는 것 방지.
+ * (정규화를 끝 `/` 검사 뒤에 두는 이유: normalize 가 후행 슬래시를 떼어 디렉토리 식별자가 파일로 둔갑하는 것 회피.)
+ */
+function taskFilePaths(t: WaveTask): string[] {
+  return (t.output_artifacts ?? [])
+    .map((a) => a.path)
+    .filter((p) => !p.endsWith('/'))
+    .map((p) => path.posix.normalize(p))
+}
+
+/**
+ * 다음 wave 의 task 집합 반환 (phase-wide).
+ * 정의: phase 안에서 status='pending' + 모든 depends_on_client_ids 의 task 가 status='done' 인 task.
+ *   - group 경계 무관 — 같은 phase 면 서로 다른 group 의 task 도 한 wave 로 병렬화한다
+ *     (병렬 단위 = group 이 아니라 task. group 은 PR/표시 라벨일 뿐).
+ *   - disjoint-aware: 후보 중 output_artifacts(파일) 가 서로 겹치지 않는 task 를 client_id 순 greedy 로 선택.
+ *     파일이 겹치는 task 는 이번 wave 에서 빠지고 다음 wave 로 미뤄진다 (cherry-pick 충돌 방지).
+ * 순환 의존성 / blocked / 다른 phase 는 wave 후보에서 제외.
  */
 export function computeNextWave(input: ComputeNextWaveInput): ComputeNextWaveResult {
-  const inGroup = input.tasks.filter(
-    (t) => t.group_key === input.groupKey && t.phase_slug === input.phaseSlug,
-  )
+  const inPhase = input.tasks.filter((t) => t.phase_slug === input.phaseSlug)
 
-  const doneSet = new Set(inGroup.filter((t) => t.status === 'done').map((t) => t.client_id))
+  const doneSet = new Set(inPhase.filter((t) => t.status === 'done').map((t) => t.client_id))
 
-  const totalCount = inGroup.length
+  const totalCount = inPhase.length
   const allDoneCount = doneSet.size
 
-  const candidates = inGroup.filter((t) => {
+  const candidates = inPhase.filter((t) => {
     if (t.status !== 'pending') return false
     const deps = t.depends_on_client_ids ?? []
     return deps.every((dep) => doneSet.has(dep))
   })
 
-  if (candidates.length === 0) {
+  // disjoint-aware 선택 — client_id 정렬(결정적) 후, 이미 점유된 file 과 안 겹치는 task 만 같은 wave.
+  // 겹치는 task 는 이번 wave 제외 → 다음 wave 로 (한 file 을 2 task 가 동시에 쓰면 cherry-pick 충돌).
+  const sorted = [...candidates].sort((a, b) => a.client_id.localeCompare(b.client_id))
+  const selected: WaveTask[] = []
+  const usedFiles = new Set<string>()
+  for (const t of sorted) {
+    const files = taskFilePaths(t)
+    if (files.some((f) => usedFiles.has(f))) continue
+    selected.push(t)
+    for (const f of files) usedFiles.add(f)
+  }
+
+  if (selected.length === 0) {
     return { wave_index: -1, tasks: [] }
   }
 
@@ -63,12 +89,13 @@ export function computeNextWave(input: ComputeNextWaveInput): ComputeNextWaveRes
   // 빈 wave (모두 done 또는 candidates 0) = -1
   // 그 외 = floor(doneCount / totalCount) + 1 — done 비율 기반 단순 추정
   //   (totalCount 0 보장 + Math.max(1, ...) — 0 div 방어)
+  //   ⚠️ disjoint 로 후보가 다음 wave 로 밀릴 수 있어 실제 호출 차수와 정확히 일치하진 않는다(표시용).
   const waveIndex =
     totalCount === 0 ? 0 : Math.floor(allDoneCount / Math.max(1, totalCount - allDoneCount)) + 1
 
   return {
     wave_index: waveIndex,
-    tasks: candidates,
+    tasks: selected,
   }
 }
 
@@ -101,13 +128,11 @@ export interface ValidateDisjointResult {
 export function validateDisjoint(input: ValidateDisjointInput): ValidateDisjointResult {
   const conflicts: DisjointConflict[] = []
   const tasks = input.tasks
-  const filePaths = (t: WaveTask) =>
-    (t.output_artifacts ?? []).map((a) => a.path).filter((p) => !p.endsWith('/'))
 
   for (let i = 0; i < tasks.length; i++) {
     for (let j = i + 1; j < tasks.length; j++) {
-      const aPaths = new Set(filePaths(tasks[i]))
-      const bPaths = new Set(filePaths(tasks[j]))
+      const aPaths = new Set(taskFilePaths(tasks[i]))
+      const bPaths = new Set(taskFilePaths(tasks[j]))
       const intersection = [...aPaths].filter((p) => bPaths.has(p))
       if (intersection.length > 0) {
         conflicts.push({
@@ -223,12 +248,10 @@ export function waveCommand(program: Command): void {
 
   wave
     .command('next')
-    .description('다음 wave 의 task list (depends_on 그래프 topological — JSON 출력)')
+    .description('다음 wave 의 task list (phase 전체 depends_on 그래프 + disjoint-aware — JSON 출력)')
     .requiredOption('--phase <phaseSlug>', 'phase_slug')
-    .requiredOption('--group <groupKey>', 'group_key')
-    .action(async (opts: { phase: string; group: string }) => {
+    .action(async (opts: { phase: string }) => {
       assertValidPhaseSlug(opts.phase)
-      assertValidGroupKey(opts.group)
       const planId = await requireField('plan_id')
       const state = await getPlanState(planId, opts.phase)
       const allTasks: WaveTask[] = []
@@ -248,7 +271,7 @@ export function waveCommand(program: Command): void {
           })
         }
       }
-      const result = computeNextWave({ tasks: allTasks, groupKey: opts.group, phaseSlug: opts.phase })
+      const result = computeNextWave({ tasks: allTasks, phaseSlug: opts.phase })
       console.log(JSON.stringify(result, null, 2))
     })
 
@@ -257,10 +280,8 @@ export function waveCommand(program: Command): void {
     .description('wave 안 task 들의 output_artifacts pairwise intersection 검증 (충돌 시 exit 1)')
     .requiredOption('--tasks <ids>', '쉼표 분리 task client_id 들 (예: T-001,T-002)')
     .requiredOption('--phase <phaseSlug>', 'phase_slug')
-    .requiredOption('--group <groupKey>', 'group_key')
-    .action(async (opts: { tasks: string; phase: string; group: string }) => {
+    .action(async (opts: { tasks: string; phase: string }) => {
       assertValidPhaseSlug(opts.phase)
-      assertValidGroupKey(opts.group)
       const clientIds = opts.tasks.split(',').map((s) => s.trim()).filter(Boolean)
       for (const id of clientIds) {
         assertValidTaskClientId(id)
@@ -269,7 +290,6 @@ export function waveCommand(program: Command): void {
       const state = await getPlanState(planId, opts.phase)
       const targetTasks: WaveTask[] = []
       for (const g of state.groups) {
-        if (g.group_key !== opts.group) continue
         for (const t of g.tasks) {
           if (clientIds.includes(t.client_id)) {
             targetTasks.push({

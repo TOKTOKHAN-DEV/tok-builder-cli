@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.21.0] - 2026-05-29
+
+### Changed
+
+- **`tokb wave next` / `tokb wave validate-disjoint` — phase-wide 로 전환** (`--group` 옵션 제거). `computeNextWave` 가 group 경계 무관하게 phase 전체에서 의존성 없고 파일 안 겹치는(disjoint-aware) task 를 한 wave 로 반환한다. 병렬 단위가 "group 안" → "phase 전체" 로 승격되어, 한 phase 에 group A(1 task) + group B(5 task) 면 6 task 가 한 wave 로 병렬. 동시 실행 폭은 leader 의 dynamic workflow(`wave-codegen`)가 관리하므로 cli 는 상한을 두지 않는다.
+- `computeNextWave` 에 disjoint-aware 선택 추가: 후보 중 `output_artifacts` 가 서로 겹치지 않는 task 를 client_id 순 greedy 로 한 wave 에 담고, 파일 겹치는 task 는 다음 wave 로 자동 분리(cherry-pick 충돌 0). 디렉토리 경로(끝 `/`)는 점유 대상 제외하고, 나머지는 `path.posix.normalize` 로 정규화 비교(`./a.ts`=`a.ts`).
+
+### ⚠️ BREAKING
+
+- `tokb wave next` / `tokb wave validate-disjoint` 의 `--group <groupKey>` 인자 제거. leader 흐름(`tok-builder-template` 의 `core-workflow.md` / `CLAUDE.md §2`)이 phase-wide wave 로 함께 갱신됨 — cli 단독 업그레이드 시 옛 group 단위 호출은 동작하지 않는다. group_key 는 `<phase>-<domain>` 네임스페이스 사용(template 분해규칙).
+
 ## [0.20.0] - 2026-05-29
 
 ### Changed
