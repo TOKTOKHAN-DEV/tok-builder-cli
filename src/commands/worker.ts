@@ -100,7 +100,11 @@ export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
     ? `## TDD 흐름 — bypass (phase_slug: ${phaseSlug})
 
 이 phase 의 task 는 산출물이 md/config/수동 점검 영역. **test 작성 X**, 정량 검증 (file 존재 / 형식 / grep) 으로 충분.
-
+${
+  phaseSlug === 'schema'
+    ? '\n> ⚠️ DB 마이그레이션 task: `supabase migration new <설명>` 으로 파일을 생성하세요 (timestamp 가 자동 부여됨). output_artifacts 의 `supabase/migrations/` 는 **만들 파일 경로가 아니라 겹침 검사용 식별 디렉토리**입니다 — 그 경로를 그대로 만들거나 symlink 하지 마세요. 검증은 마이그레이션 파일 grep + push 후 `tokb db-types sync` 결과(`database.types.ts`)로 합니다.\n'
+    : ''
+}
 각 task 진행:
 1. \`tokb task progress <uuid> in_progress\`
 2. 산출물 작성 (md / config / spec)
@@ -162,7 +166,6 @@ ${fence}
    ln -sf "\${LEADER_ROOT}/.env.local" .env.local
    \`\`\`
 3. \`pnpm install --frozen-lockfile\`
-4. \`pnpm exec tokb preflight\`
 
 ## task 목록
 
@@ -174,7 +177,7 @@ ${tddSection}
 
 ## 완료 시
 
-자기 group 의 모든 task done 후 controller 에 보고 — _자체 호출 X_. controller 가 사용자 한 줄 confirm 후 \`tokb group complete ${groupKey}\` 호출.
+자기 group 의 모든 task done 후 리더(leader)에 보고 — _자체 호출 X_. 리더가 사용자 한 줄 confirm 후 \`tokb group complete ${groupKey}\` 호출.
 
 ## Report Format
 

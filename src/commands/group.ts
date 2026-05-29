@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { Command } from 'commander'
 import { getProjectState } from '../lib/api.js'
 import { requireField } from '../lib/config.js'
 import { assertValidGroupKey } from '../lib/group-key.js'
+import { groupWorktreePath } from './worktree.js'
 
 export function filterGroupTasks<
   T extends { group_key: string | null; phase_slug: string },
@@ -73,9 +75,20 @@ export function groupCommand(program: Command): void {
 
       const branch = `feat/${groupKey}-group`
 
+      // push/pr 은 group worktree 안에서 실행 — group branch HEAD 인 그 worktree 에서 push 해야
+      // pre-push hook(typecheck+test)이 cherry-pick 된 통합 코드를 검사한다 (leader 메인트리는
+      // main 상태라 그 트리에서 push 하면 엉뚱한 코드를 검사하게 됨).
+      const wtCwd = groupWorktreePath(process.cwd(), groupKey)
+      if (!existsSync(wtCwd)) {
+        console.error(
+          `group worktree 부재: ${wtCwd}. \`tokb worktree create ${groupKey}\` 를 먼저 실행하세요.`,
+        )
+        process.exit(1)
+      }
+
       // 1) push (이미 push 된 경우 no-op)
       try {
-        execFileSync('git', ['push', '-u', 'origin', branch], { stdio: 'inherit' })
+        execFileSync('git', ['push', '-u', 'origin', branch], { cwd: wtCwd, stdio: 'inherit' })
       } catch (e) {
         console.error(`git push fail: ${e instanceof Error ? e.message : String(e)}`)
         process.exit(1)
@@ -99,7 +112,7 @@ export function groupCommand(program: Command): void {
             '--body',
             `group '${groupKey}' 모든 task done. 자동 PR.`,
           ],
-          { stdio: 'pipe' },
+          { cwd: wtCwd, stdio: 'pipe' },
         )
         const url = out.toString().trim()
         console.log(`✓ PR 생성 완료 (group: ${groupKey})${url ? ` — ${url}` : ''}`)
@@ -123,7 +136,7 @@ export function groupCommand(program: Command): void {
           execFileSync(
             'gh',
             ['pr', 'merge', branch, '--squash', '--delete-branch'],
-            { stdio: 'inherit' },
+            { cwd: wtCwd, stdio: 'inherit' },
           )
           console.log(`✓ PR 자동 머지 완료 (squash, branch 삭제) — group: ${groupKey}`)
         } catch (e) {

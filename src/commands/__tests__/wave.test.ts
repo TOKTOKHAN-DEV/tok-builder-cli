@@ -156,38 +156,67 @@ describe('validateDisjoint', () => {
     })
     expect(result.ok).toBe(true)
   })
+
+  it('디렉토리 경로(끝 /)는 비교 제외 — 마이그레이션 task 끼리 충돌 아님 (D3)', () => {
+    const result = validateDisjoint({
+      tasks: [
+        { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'supabase/migrations/', kind: 'code' }] },
+        { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'supabase/migrations/', kind: 'code' }] },
+      ],
+    })
+    expect(result.ok).toBe(true)
+    expect(result.conflicts).toEqual([])
+  })
+
+  it('디렉토리(끝 /) 는 제외하되 같은 파일 path 는 여전히 충돌로 잡음', () => {
+    const result = validateDisjoint({
+      tasks: [
+        { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'supabase/migrations/', kind: 'code' }, { path: 'lib/x.ts', kind: 'code' }] },
+        { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'supabase/migrations/', kind: 'code' }, { path: 'lib/x.ts', kind: 'code' }] },
+      ],
+    })
+    expect(result.ok).toBe(false)
+    expect(result.conflicts).toEqual([{ tasks: ['T-001', 'T-002'], files: ['lib/x.ts'] }])
+  })
 })
 
-function initBareRepoWithBranches(): string {
+// 실제 흐름 반영: group branch 는 group worktree(.tokb/worktrees/auth)가 점유,
+// task 작업은 task worktree(.tokb/worktrees/auth__<id>)에서. mergeWave 는 group worktree 에서 cherry-pick.
+function initRepoWithGroupWorktree(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'tokb-wave-merge-test-'))
   execSync('git init -q -b main', { cwd: dir })
   execSync('git config user.email test@x.com', { cwd: dir })
   execSync('git config user.name test', { cwd: dir })
-  // main 의 init commit
   writeFileSync(path.join(dir, 'README.md'), '# init\n')
   execSync('git add README.md', { cwd: dir })
   execSync('git commit -m init -q', { cwd: dir })
-  // feat/<gk>-group (group branch, base) 생성. 본 test 에선 group_key=auth.
-  execSync('git checkout -b feat/auth-group -q', { cwd: dir })
-  execSync('git checkout main -q', { cwd: dir })
+  // group branch 생성(메인트리는 main 유지) + group worktree 가 그 branch 점유
+  execSync('git branch feat/auth-group', { cwd: dir })
+  execSync('git worktree add .tokb/worktrees/auth feat/auth-group -q', { cwd: dir })
   return dir
 }
 
-function commitTaskWork(repo: string, branchName: string, files: { path: string; content: string }[], message: string): string {
-  execSync(`git checkout ${branchName} -q`, { cwd: repo })
+// task worktree 에서 작업 + commit (실제 흐름: worker 가 task worktree 에서 작업)
+function addTaskWithCommit(
+  repo: string,
+  taskId: string,
+  files: { path: string; content: string }[],
+  message: string,
+): void {
+  const wt = path.join(repo, '.tokb', 'worktrees', `auth__${taskId}`)
+  execSync(`git worktree add -b feat/auth/${taskId} "${wt}" feat/auth-group -q`, { cwd: repo })
   for (const f of files) {
-    const full = path.join(repo, f.path)
+    const full = path.join(wt, f.path)
     mkdirSync(path.dirname(full), { recursive: true })
     writeFileSync(full, f.content)
   }
-  execSync('git add -A', { cwd: repo })
-  execSync(`git commit -m "${message}" -q`, { cwd: repo })
-  return execSync('git rev-parse HEAD', { cwd: repo }).toString().trim()
+  execSync('git add -A', { cwd: wt })
+  execSync(`git commit -m "${message}" -q`, { cwd: wt })
 }
 
 describe('mergeWave', () => {
   it('빈 task list — no-op + merged_commits=0', async () => {
-    const repo = initBareRepoWithBranches()
+    const repo = initRepoWithGroupWorktree()
     try {
       const result = await mergeWave({ groupKey: 'auth', taskClientIds: [], cwd: repo })
       expect(result.merged_commits).toBe(0)
@@ -196,51 +225,60 @@ describe('mergeWave', () => {
     }
   })
 
-  it('disjoint 한 2 task — cherry-pick 성공', async () => {
-    const repo = initBareRepoWithBranches()
+  it('group worktree 부재 시 throw (checkout 충돌 회피 — worktree 에서만 동작)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'tokb-wave-merge-nowt-'))
+    execSync('git init -q -b main', { cwd: dir })
+    execSync('git config user.email test@x.com', { cwd: dir })
+    execSync('git config user.name test', { cwd: dir })
+    execSync('git commit --allow-empty -m init -q', { cwd: dir })
     try {
-      // feat/auth/T-001 — file a.ts 박음 (base feat/auth-group)
-      execSync('git checkout -b feat/auth/T-001 feat/auth-group -q', { cwd: repo })
-      commitTaskWork(repo, 'feat/auth/T-001', [{ path: 'a.ts', content: 'a' }], 'feat(T-001)')
+      await expect(
+        mergeWave({ groupKey: 'auth', taskClientIds: ['T-001'], cwd: dir }),
+      ).rejects.toThrow(/group worktree 부재/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 
-      // feat/auth/T-002 — file b.ts 박음
-      execSync('git checkout -b feat/auth/T-002 feat/auth-group -q', { cwd: repo })
-      commitTaskWork(repo, 'feat/auth/T-002', [{ path: 'b.ts', content: 'b' }], 'feat(T-002)')
+  it('disjoint 한 2 task — group worktree 에서 cherry-pick 성공 (leader 메인트리 미점유)', async () => {
+    const repo = initRepoWithGroupWorktree()
+    try {
+      addTaskWithCommit(repo, 'T-001', [{ path: 'a.ts', content: 'a' }], 'feat(T-001)')
+      addTaskWithCommit(repo, 'T-002', [{ path: 'b.ts', content: 'b' }], 'feat(T-002)')
 
-      // feat/auth-group 로 cherry-pick
-      const result = await mergeWave({
-        groupKey: 'auth',
-        taskClientIds: ['T-001', 'T-002'],
-        cwd: repo,
-      })
-
+      const result = await mergeWave({ groupKey: 'auth', taskClientIds: ['T-001', 'T-002'], cwd: repo })
       expect(result.merged_commits).toBe(2)
 
-      // feat/auth-group 에 a.ts + b.ts 둘 다 있어야 함
-      execSync('git checkout feat/auth-group -q', { cwd: repo })
-      expect(existsSync(path.join(repo, 'a.ts'))).toBe(true)
-      expect(existsSync(path.join(repo, 'b.ts'))).toBe(true)
+      // group worktree 에 a.ts + b.ts 둘 다 cherry-pick 됨
+      const gwt = path.join(repo, '.tokb', 'worktrees', 'auth')
+      expect(existsSync(path.join(gwt, 'a.ts'))).toBe(true)
+      expect(existsSync(path.join(gwt, 'b.ts'))).toBe(true)
+      // 메인트리(main)는 안 건드림 — a.ts/b.ts 없음
+      expect(existsSync(path.join(repo, 'a.ts'))).toBe(false)
     } finally {
       rmSync(repo, { recursive: true, force: true })
     }
   })
 
   it('cherry-pick 충돌 — abort + throw + 명확한 보고', async () => {
-    const repo = initBareRepoWithBranches()
+    const repo = initRepoWithGroupWorktree()
     try {
-      // 두 task 가 같은 file 변경 (충돌 시나리오 — validate-disjoint 누락 케이스)
-      execSync('git checkout -b feat/auth/T-001 feat/auth-group -q', { cwd: repo })
-      commitTaskWork(repo, 'feat/auth/T-001', [{ path: 'shared.ts', content: 'A version\n' }], 'feat(T-001)')
+      addTaskWithCommit(repo, 'T-001', [{ path: 'shared.ts', content: 'A version\n' }], 'feat(T-001)')
+      addTaskWithCommit(repo, 'T-002', [{ path: 'shared.ts', content: 'B version\n' }], 'feat(T-002)')
 
-      execSync('git checkout -b feat/auth/T-002 feat/auth-group -q', { cwd: repo })
-      commitTaskWork(repo, 'feat/auth/T-002', [{ path: 'shared.ts', content: 'B version\n' }], 'feat(T-002)')
+      let err: Error | undefined
+      try {
+        await mergeWave({ groupKey: 'auth', taskClientIds: ['T-001', 'T-002'], cwd: repo })
+      } catch (e) {
+        err = e as Error
+      }
+      expect(err?.message).toMatch(/cherry-pick conflict|충돌/)
+      // worktree-aware CHERRY_PICK_HEAD 검출 — 정상 abort 시 "git 상태 불일치" 오경고가 없어야 함
+      expect(err?.message).not.toMatch(/git 상태 불일치/)
 
-      await expect(
-        mergeWave({ groupKey: 'auth', taskClientIds: ['T-001', 'T-002'], cwd: repo })
-      ).rejects.toThrow(/cherry-pick conflict|충돌/)
-
-      // cherry-pick state 정리됐는지 (abort 됐는지) — feat/auth-group 의 HEAD 가 cherry-pick 중 아니어야 함
-      const status = execSync('git status', { cwd: repo }).toString()
+      // group worktree 에서 cherry-pick state 정리됐는지 (abort 됐는지)
+      const gwt = path.join(repo, '.tokb', 'worktrees', 'auth')
+      const status = execSync('git status', { cwd: gwt }).toString()
       expect(status).not.toMatch(/cherry-pick in progress/i)
     } finally {
       rmSync(repo, { recursive: true, force: true })

@@ -8,6 +8,7 @@ import { getPlanState } from '../lib/api.js'
 import { requireField } from '../lib/config.js'
 import { assertValidGroupKey, assertValidPhaseSlug } from '../lib/group-key.js'
 import { assertValidTaskClientId } from '../lib/task-key.js'
+import { groupWorktreePath } from './worktree.js'
 
 export interface WaveTask {
   id: string
@@ -90,15 +91,23 @@ export interface ValidateDisjointResult {
  * 충돌 = 같은 file path 를 2+ task 가 변경. 모든 pair 의 intersection 보고.
  * null / undefined output_artifacts = 빈 set (충돌 0).
  * path 기준 비교 (kind 무관).
+ *
+ * 디렉토리 경로(끝이 `/`)는 비교에서 제외한다 — 마이그레이션 task 는 파일명이
+ * `supabase migration new` 의 timestamp 라 plan 시점에 못 박으므로 output_artifacts 를
+ * `supabase/migrations/` 디렉토리로 둔다. 마이그레이션 파일은 timestamp 라 본질적으로
+ * unique → 디렉토리가 겹쳐도 실제 파일 충돌은 없다. (worker prompt 가 "디렉토리는 만들
+ * 파일이 아니라 식별자"임을 명시)
  */
 export function validateDisjoint(input: ValidateDisjointInput): ValidateDisjointResult {
   const conflicts: DisjointConflict[] = []
   const tasks = input.tasks
+  const filePaths = (t: WaveTask) =>
+    (t.output_artifacts ?? []).map((a) => a.path).filter((p) => !p.endsWith('/'))
 
   for (let i = 0; i < tasks.length; i++) {
     for (let j = i + 1; j < tasks.length; j++) {
-      const aPaths = new Set((tasks[i].output_artifacts ?? []).map((a) => a.path))
-      const bPaths = new Set((tasks[j].output_artifacts ?? []).map((a) => a.path))
+      const aPaths = new Set(filePaths(tasks[i]))
+      const bPaths = new Set(filePaths(tasks[j]))
       const intersection = [...aPaths].filter((p) => bPaths.has(p))
       if (intersection.length > 0) {
         conflicts.push({
@@ -126,6 +135,10 @@ export interface MergeWaveResult {
  * task branch 들의 feat/<gk>-group 이후 commits 을 group branch (feat/<gk>-group) 로 cherry-pick.
  * task_client_id 순으로 정렬 후 순차 cherry-pick.
  * 충돌 시 abort + throw + 명확한 보고.
+ *
+ * cherry-pick 은 **group worktree (.tokb/worktrees/<gk>) 안에서** 실행한다.
+ * 그 worktree 가 이미 group branch HEAD 라 checkout 이 불필요하고, leader 메인트리에서
+ * `git checkout feat/<gk>-group` 을 시도할 때 나던 "already checked out" 충돌을 회피한다.
  */
 export async function mergeWave(opts: MergeWaveOpts): Promise<MergeWaveResult> {
   assertValidGroupKey(opts.groupKey)
@@ -133,15 +146,20 @@ export async function mergeWave(opts: MergeWaveOpts): Promise<MergeWaveResult> {
     assertValidTaskClientId(id)
   }
 
-  const cwd = opts.cwd ?? process.cwd()
   const groupBranch = `feat/${opts.groupKey}-group`
 
   if (opts.taskClientIds.length === 0) {
     return { merged_commits: 0 }
   }
 
-  // group branch 로 checkout
-  execFileSync('git', ['checkout', groupBranch, '-q'], { cwd, stdio: 'pipe' })
+  // group worktree 가 작업 cwd — 이미 group branch 를 점유(HEAD)하므로 checkout 안 한다.
+  const baseCwd = opts.cwd ?? process.cwd()
+  const cwd = groupWorktreePath(baseCwd, opts.groupKey)
+  if (!existsSync(cwd)) {
+    throw new Error(
+      `group worktree 부재: ${cwd}. \`tokb worktree create ${opts.groupKey}\` 를 먼저 실행하세요.`,
+    )
+  }
 
   const sortedIds = [...opts.taskClientIds].sort()
   let mergedCommits = 0
@@ -167,9 +185,22 @@ export async function mergeWave(opts: MergeWaveOpts): Promise<MergeWaveResult> {
         } catch {
           abortFailed = true
         }
-        // CHERRY_PICK_HEAD 잔존 검사 — abort 실패 시 명시
-        const cherryPickHeadPath = path.join(cwd, '.git', 'CHERRY_PICK_HEAD')
-        const stateRemains = existsSync(cherryPickHeadPath)
+        // CHERRY_PICK_HEAD 잔존 검사 — abort 실패 시 명시.
+        // cwd 가 group worktree 면 `.git` 은 gitlink 파일이라 `.git/CHERRY_PICK_HEAD` 가 없다.
+        // git rev-parse --git-path 로 worktree-aware 한 실제 경로를 얻는다.
+        let stateRemains = false
+        try {
+          const rel = execFileSync('git', ['rev-parse', '--git-path', 'CHERRY_PICK_HEAD'], {
+            cwd,
+            stdio: 'pipe',
+          })
+            .toString()
+            .trim()
+          const abs = path.isAbsolute(rel) ? rel : path.join(cwd, rel)
+          stateRemains = existsSync(abs)
+        } catch {
+          // rev-parse 실패 시 보수적으로 false
+        }
         const rawMsg = e instanceof Error ? e.message : String(e)
         const msg = rawMsg.replace(/[\r\n\t\x1b]/g, ' ')
         const stateNote = stateRemains
@@ -178,7 +209,7 @@ export async function mergeWave(opts: MergeWaveOpts): Promise<MergeWaveResult> {
             ? ' (cherry-pick --abort 실패, 상태 정리됨)'
             : ''
         throw new Error(
-          `cherry-pick conflict — task ${taskId} commit ${sha.slice(0, 7)} 충돌. file disjoint 룰 위반 가능성 (validate-disjoint 사전 호출 권장). ${msg}${stateNote}`,
+          `cherry-pick conflict — task ${taskId} commit ${sha.slice(0, 7)} 충돌. 파일 겹침 룰 위반 가능성 (validate-disjoint 사전 호출 권장). ${msg}${stateNote}`,
         )
       }
     }
@@ -188,7 +219,7 @@ export async function mergeWave(opts: MergeWaveOpts): Promise<MergeWaveResult> {
 }
 
 export function waveCommand(program: Command): void {
-  const wave = program.command('wave').description('wave 단위 task 병렬 dispatch 보조 명령 (AI-DLC Stage A)')
+  const wave = program.command('wave').description('wave 단위 task 병렬 호출 보조 명령 (AI-DLC Stage A)')
 
   wave
     .command('next')

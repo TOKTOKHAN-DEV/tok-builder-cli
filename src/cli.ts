@@ -37,7 +37,7 @@ process.on('unhandledRejection', (err) => {
 const program = new Command()
 program
   .name('tokb')
-  .description('외주 빌드 오케스트레이션용 tok-builder CLI')
+  .description('tok-builder 빌드 자동 진행 CLI')
   .version(pkg.version)
 
 for (const register of [

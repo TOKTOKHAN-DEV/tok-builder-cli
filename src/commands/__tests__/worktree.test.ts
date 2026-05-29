@@ -40,10 +40,10 @@ describe('tokb worktree create', () => {
     expect(result2.branch).toBe('feat/users-group')
   })
 
-  it('branch 는 존재하지만 worktree 는 없는 경우 (옛 cleanup 잔존) — -b 없이 worktree add 성공', async () => {
-    // worktree 생성 후 cleanup (worktree 제거, branch 유지)
+  it('branch 는 존재하지만 worktree 는 없는 경우 (수동 worktree 제거 잔존) — -b 없이 worktree add 성공', async () => {
+    // worktree 생성 후, worktree 만 수동 제거 (branch 는 남김 — group complete 전 중단된 잔존 시나리오)
     await worktreeCreate({ groupKey: 'payments', cwd: repo })
-    await worktreeCleanup({ groupKey: 'payments', cwd: repo })
+    execSync('git worktree remove --force .tokb/worktrees/payments', { cwd: repo })
 
     // branch 가 살아 있는지 확인
     const branches = execSync('git branch', { cwd: repo }).toString()
@@ -70,14 +70,21 @@ describe('tokb worktree cleanup', () => {
     rmSync(repo, { recursive: true, force: true })
   })
 
-  it('worktree 제거 (branch 는 유지 — PR 머지 후 main 에 squash)', async () => {
+  it('worktree + group branch 제거 (PR 머지 후 로컬 정리 — 누수 0)', async () => {
     await worktreeCreate({ groupKey: 'chat', cwd: repo })
-    await worktreeCleanup({ groupKey: 'chat', cwd: repo })
+    const r = await worktreeCleanup({ groupKey: 'chat', cwd: repo })
     expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'chat'))).toBe(false)
+    // group branch 로컬도 정리됨 (leak 방지)
+    expect(execSync('git branch', { cwd: repo }).toString()).not.toContain('feat/chat-group')
+    expect(r.removedBranches).toContain('feat/chat-group')
+    expect(r.failures).toEqual([])
   })
 
-  it('존재하지 않는 worktree cleanup 시 idempotent (조용히 통과)', async () => {
-    await expect(worktreeCleanup({ groupKey: 'nonexistent', cwd: repo })).resolves.toBeUndefined()
+  it('존재하지 않는 worktree cleanup 시 idempotent (failures 0)', async () => {
+    const r = await worktreeCleanup({ groupKey: 'nonexistent', cwd: repo })
+    expect(r.failures).toEqual([])
+    expect(r.removedWorktrees).toEqual([])
+    expect(r.removedBranches).toEqual([])
   })
 })
 
@@ -134,22 +141,25 @@ describe('tokb worktree cleanup (확장)', () => {
     rmSync(repo, { recursive: true, force: true })
   })
 
-  it('확장 — task worktree N + task branch N 모두 일괄 제거 (Stage A)', async () => {
+  it('확장 — task worktree N + task branch N + group branch 모두 일괄 제거 (누수 0)', async () => {
     await worktreeCreate({ groupKey: 'auth', cwd: repo })
     await worktreeCreateTask({ groupKey: 'auth', taskClientId: 'T-001', cwd: repo })
     await worktreeCreateTask({ groupKey: 'auth', taskClientId: 'T-002', cwd: repo })
 
-    await worktreeCleanup({ groupKey: 'auth', cwd: repo })
+    const r = await worktreeCleanup({ groupKey: 'auth', cwd: repo })
 
     // group worktree + task worktree 모두 제거됨
     expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'auth'))).toBe(false)
     expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'auth__T-001'))).toBe(false)
     expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'auth__T-002'))).toBe(false)
 
-    // task branch 도 제거됨 (group branch feat/auth-group 는 PR 머지 후 자동 삭제)
+    // task branch + group branch 모두 제거됨 (로컬 leak 0)
     const branches = execSync('git branch', { cwd: repo }).toString()
     expect(branches).not.toContain('feat/auth/T-001')
     expect(branches).not.toContain('feat/auth/T-002')
+    expect(branches).not.toContain('feat/auth-group')
+    // 못 지운 것 없이 깨끗하게 정리됨
+    expect(r.failures).toEqual([])
   })
 })
 
