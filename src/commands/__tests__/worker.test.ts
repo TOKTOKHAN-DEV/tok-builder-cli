@@ -256,6 +256,31 @@ describe('buildWorkerPrompt', () => {
     const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'backend', worktreePath: '/p', tasks: [task] })
     expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner | 권장 model: sonnet]')
   })
+
+  // acceptance criteria 보고 단계 — worker 가 done 전에 tokb task criteria 로 정량/정성 인덱스를 보고해야
+  // platform 의 acceptance_criteria_state 가 채워진다(체크박스 표시 + enforce phase 정량 게이트 통과).
+  // 이 단계가 흐름에서 빠지면 task 는 done 인데 체크박스가 0/N 으로 남는다 (bypass phase 는 게이트도 없어 조용히 통과).
+  it('bypass phase (schema) — done 전에 tokb task criteria 보고 단계가 흐름에 포함', () => {
+    const prompt = buildWorkerPrompt({
+      groupKey: 'auth',
+      phaseSlug: 'schema',
+      worktreePath: '/repo/.tokb/worktrees/auth',
+      tasks: [{ ...sampleSpecTask, phase_slug: 'schema' }],
+    })
+    expect(prompt).toContain('tokb task criteria')
+    expect(prompt.indexOf('tokb task criteria')).toBeLessThan(prompt.indexOf('progress <uuid> done'))
+  })
+
+  it('enforce phase (backend) — done 전에 tokb task criteria 보고 단계가 흐름에 포함', () => {
+    const prompt = buildWorkerPrompt({
+      groupKey: 'auth',
+      phaseSlug: 'backend',
+      worktreePath: '/repo/.tokb/worktrees/auth',
+      tasks: [sampleCodeTask],
+    })
+    expect(prompt).toContain('tokb task criteria')
+    expect(prompt.indexOf('tokb task criteria')).toBeLessThan(prompt.indexOf('progress <uuid> done'))
+  })
 })
 
 describe('workerPromptAction', () => {

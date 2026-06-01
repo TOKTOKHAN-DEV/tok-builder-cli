@@ -110,7 +110,8 @@ ${
 2. 산출물 작성 (md / config / spec)
 3. 정량 검증 (예: ls / grep / schema check)
 4. commit (\`git commit -m "feat({group}): {title}"\`)
-5. \`tokb task progress <uuid> done --note "정량 N/N 통과"\`
+5. \`tokb task criteria <uuid> --done <충족 [정량] 인덱스 전부>\` (acceptance_criteria 의 \`[정량]\`/\`[mechanical]\` 줄 0-based 인덱스, 예: "0,1"). **이 단계를 건너뛰면 task 는 done 인데 체크박스가 0/N 으로 남는다.**
+6. \`tokb task progress <uuid> done --note "정량 N/N 통과"\`
 `
     : `## TDD 흐름 — enforce (phase_slug: ${phaseSlug})
 
@@ -123,7 +124,8 @@ ${
 5. 코드 작성 → green 확인
 6. code commit (\`git commit -m "feat(...): ..."\`)
 7. \`tokb commits push <task_id> <code_sha> --role code\`
-8. \`tokb task progress <uuid> done --commit-sha-test <test_sha> --commit-sha-code <code_sha> --note "정량 N/N + 정성 M/M 통과"\`
+8. \`tokb task criteria <uuid> --done <충족 [정량]+[정성] 인덱스 전부>\` (acceptance_criteria 의 \`[정량]\`/\`[정성]\` 줄 0-based 인덱스). **정량 인덱스를 전부 보고해야 다음 done 게이트를 통과한다 (미보고 시 done 422).**
+9. \`tokb task progress <uuid> done --commit-sha-test <test_sha> --commit-sha-code <code_sha> --note "정량 N/N + 정성 M/M 통과"\`
 `
 
   const taskLines = tasks
