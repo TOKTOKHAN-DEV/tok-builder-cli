@@ -121,13 +121,34 @@ describe('computeNextWave (phase-wide)', () => {
     expect(result.tasks.map((t) => t.client_id)).toEqual(['T-001'])
   })
 
-  it('blocked task 는 wave 후보 X (pending 만)', () => {
+  it('blocked task 는 wave 후보 X', () => {
     const tasks: WaveTask[] = [
       { ...baseTask, client_id: 'T-001', status: 'blocked', depends_on_client_ids: [], output_artifacts: [] },
       { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
     ]
     const result = computeNextWave({ tasks, phaseSlug: 'backend' })
     expect(result.tasks.map((t) => t.client_id)).toEqual(['T-002'])
+  })
+
+  // 토큰 끊김 재개: worker 가 작업 중 끊기면 task 가 in_progress 로 남는데, wave start 시점
+  // (= 이전 wave 완료 시점)의 in_progress 는 stale(끊긴 것)이므로 다음 wave 후보로 흡수해야
+  // 누락 없이 재투입된다. pending 만 잡던 옛 동작은 in_progress task 를 영영 방치했다 (t-026 사고).
+  it('in_progress task 는 wave 후보에 포함 (토큰 끊김 stale 재개)', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', status: 'in_progress', depends_on_client_ids: [], output_artifacts: [{ path: 'a.ts', kind: 'code' }] },
+      { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [{ path: 'b.ts', kind: 'code' }] },
+    ]
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
+    expect(result.tasks.map((t) => t.client_id).sort()).toEqual(['T-001', 'T-002'])
+  })
+
+  it('in_progress task 도 depends_on 이 done 이어야 후보 (pending 과 동일 의존성 규칙)', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', status: 'in_progress', depends_on_client_ids: ['T-009'], output_artifacts: [{ path: 'a.ts', kind: 'code' }] },
+    ]
+    // 의존 T-009 가 done 아님 → in_progress 라도 후보 제외
+    const result = computeNextWave({ tasks, phaseSlug: 'backend' })
+    expect(result.tasks).toEqual([])
   })
 
   it('순환 의존성 — 빈 wave 반환 + 안전 종료', () => {
