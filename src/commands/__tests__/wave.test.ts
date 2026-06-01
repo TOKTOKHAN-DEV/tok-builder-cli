@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
-import { computeNextWave, validateDisjoint, mergeWave, attachRecommendedModel, type WaveTask } from '../wave'
+import { computeNextWave, validateDisjoint, mergeWave, attachRecommendedModel, buildWaveDispatch, type WaveTask, type WaveTaskWithModel } from '../wave'
 
 const baseTask: Omit<WaveTask, 'client_id' | 'status' | 'depends_on_client_ids' | 'output_artifacts'> = {
   id: 'uuid-x',
@@ -372,6 +372,96 @@ describe('mergeWave', () => {
       const gwt = path.join(repo, '.tokb', 'worktrees', 'auth')
       const status = execSync('git status', { cwd: gwt }).toString()
       expect(status).not.toMatch(/cherry-pick in progress/i)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+})
+
+// buildWaveDispatch 는 worktree(group + task)를 전부 TS 로 생성 → leader shell 루프(zsh 단어 분리) 제거.
+function initPlainRepo(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'tokb-wave-start-test-'))
+  execSync('git init -q -b main', { cwd: dir })
+  execSync('git config user.email test@x.com', { cwd: dir })
+  execSync('git config user.name test', { cwd: dir })
+  writeFileSync(path.join(dir, 'README.md'), '# init\n')
+  execSync('git add README.md', { cwd: dir })
+  execSync('git commit -m init -q', { cwd: dir })
+  return dir
+}
+
+function modelTask(over: Partial<WaveTaskWithModel> & { client_id: string }): WaveTaskWithModel {
+  return {
+    id: `uuid-${over.client_id}`,
+    phase_slug: 'schema',
+    group_key: 'schema-auth',
+    description: '',
+    acceptance_criteria: '',
+    test_file_path: null,
+    status: 'pending',
+    depends_on_client_ids: [],
+    output_artifacts: [],
+    recommended_model: 'sonnet',
+    ...over,
+  }
+}
+
+describe('buildWaveDispatch', () => {
+  it('단일 group + 2 task — group worktree 1개(멱등) + task worktree 2개 생성, dispatch 반환', async () => {
+    const repo = initPlainRepo()
+    try {
+      const tasks = [modelTask({ client_id: 't-001' }), modelTask({ client_id: 't-002' })]
+      const dispatch = await buildWaveDispatch(tasks, { cwd: repo, install: false })
+
+      // group worktree 1개 (두 task 가 같은 group_key — 두 번째 worktreeCreate 는 멱등 skip)
+      expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'schema-auth'))).toBe(true)
+      // task worktree 2개 — 이름이 <gk>__<id> 로 정확 (zsh 뭉개짐 없음)
+      expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'schema-auth__t-001'))).toBe(true)
+      expect(existsSync(path.join(repo, '.tokb', 'worktrees', 'schema-auth__t-002'))).toBe(true)
+
+      expect(dispatch).toHaveLength(2)
+      expect(dispatch[0]).toEqual({
+        taskId: 'uuid-t-001',
+        clientId: 't-001',
+        groupKey: 'schema-auth',
+        worktree: path.join(repo, '.tokb', 'worktrees', 'schema-auth__t-001'),
+        model: 'sonnet',
+      })
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  it('빈 task list — worktree 0개, dispatch 빈 배열', async () => {
+    const repo = initPlainRepo()
+    try {
+      const dispatch = await buildWaveDispatch([], { cwd: repo, install: false })
+      expect(dispatch).toEqual([])
+      expect(existsSync(path.join(repo, '.tokb', 'worktrees'))).toBe(false)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  it('group_key 없는 task — throw (worktree 생성 전 차단)', async () => {
+    const repo = initPlainRepo()
+    try {
+      const tasks = [modelTask({ client_id: 't-001', group_key: null })]
+      await expect(buildWaveDispatch(tasks, { cwd: repo, install: false })).rejects.toThrow(
+        /group_key 가 없어/,
+      )
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  it('재호출 멱등 — 같은 wave 두 번 호출해도 에러 없이 같은 dispatch', async () => {
+    const repo = initPlainRepo()
+    try {
+      const tasks = [modelTask({ client_id: 't-001' })]
+      const first = await buildWaveDispatch(tasks, { cwd: repo, install: false })
+      const second = await buildWaveDispatch(tasks, { cwd: repo, install: false })
+      expect(second).toEqual(first)
     } finally {
       rmSync(repo, { recursive: true, force: true })
     }

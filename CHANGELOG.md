@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.23.0] - 2026-06-01
+
+### Added
+
+- **`tokb wave start --phase <p>`** — 다음 wave 의 worktree(group + task)를 CLI 내부에서 일괄 생성하고 `{ wave_index, tasks: [{ taskId, clientId, groupKey, worktree, model }] }` 를 JSON 출력. `wave next` 계산 + group/task worktree 생성을 한 명령으로 융합해, leader 가 `tokb worktree create-task` 를 task 마다 shell 루프로 호출하던 흐름을 제거한다. 출력 `tasks` 는 `wave-codegen` workflow args 계약과 일치 — leader 는 가공 없이 그대로 넘긴다.
+
+### Fixed
+
+- **zsh 단어 분리로 worktree 이름이 뭉개지던 버그 제거.** leader 가 `tokb wave next` 출력의 client_id 들을 shell 루프(`for id in $IDS`)로 돌려 worktree 를 만들 때, zsh 는 unquoted scalar 를 단어 분리하지 않아(bash 와 차이) 7 개 task 가 개행 포함 단일 worktree(`schema-auth__t-001\n…\nt-007`, 표시상 `…t-007`)로 뭉개졌다. `wave start` 가 worktree 생성을 전부 TS(`path.join` + `execFileSync` 배열 인자)로 옮겨 shell 분리에 원천 면역.
+
 ## [0.22.0] - 2026-06-01
 
 ### Added
