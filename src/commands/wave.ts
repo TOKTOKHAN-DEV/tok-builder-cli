@@ -9,7 +9,7 @@ import { requireField } from '../lib/config.js'
 import { assertValidGroupKey, assertValidPhaseSlug } from '../lib/group-key.js'
 import { assertValidTaskClientId } from '../lib/task-key.js'
 import { resolveRecommendedModel } from './worker.js'
-import { groupWorktreePath } from './worktree.js'
+import { groupWorktreePath, worktreeCreate, worktreeCreateTask } from './worktree.js'
 
 export interface WaveTask {
   id: string
@@ -115,6 +115,79 @@ export function attachRecommendedModel(tasks: WaveTask[]): WaveTaskWithModel[] {
     ...t,
     recommended_model: resolveRecommendedModel(t.sub_step, t.last_failed_event_meta?.escalated_to_model),
   }))
+}
+
+/** wave start 출력 / wave-codegen workflow args 계약. groupKey 는 leader 의 wave merge 분류용. */
+export interface WaveDispatchTask {
+  taskId: string
+  clientId: string
+  groupKey: string
+  worktree: string
+  model: 'haiku' | 'sonnet'
+}
+
+export interface BuildWaveDispatchOpts {
+  cwd?: string
+  /** group worktree pnpm install 여부 (기본 true). 테스트는 false. */
+  install?: boolean
+}
+
+/**
+ * wave 안 task 들의 worktree(group + task)를 CLI 내부에서 일괄 생성하고 dispatch 배열 반환.
+ * worktree 생성을 전부 TS(path.join + execFileSync)로 처리해, leader 가 shell 루프로
+ * `tokb worktree create-task` 를 N 번 호출하던 흐름을 없앤다 — zsh 단어 분리(unquoted scalar
+ * 미분리) 로 worktree 이름이 뭉개지던 버그의 근원을 제거.
+ *
+ * - group worktree: wave 안 distinct group_key 마다 멱등 생성(있으면 skip) + pre-push hook 용 deps install
+ * - task worktree: task 마다 생성 → { taskId, clientId, groupKey, worktree, model }
+ */
+export async function buildWaveDispatch(
+  tasks: WaveTaskWithModel[],
+  opts: BuildWaveDispatchOpts = {},
+): Promise<WaveDispatchTask[]> {
+  const cwd = opts.cwd ?? process.cwd()
+  const install = opts.install ?? true
+
+  // group_key 는 worktree 이름의 일부 — 없으면 worktree 를 만들 수 없다.
+  for (const t of tasks) {
+    if (!t.group_key) {
+      throw new Error(`task ${t.client_id} 에 group_key 가 없어 worktree 를 만들 수 없습니다.`)
+    }
+  }
+
+  // 1) wave 안 distinct group_key 마다 group worktree 멱등 생성 (base branch + pre-push hook deps)
+  const groupKeys = [...new Set(tasks.map((t) => t.group_key as string))]
+  for (const gk of groupKeys) {
+    const { path: gwt } = await worktreeCreate({ groupKey: gk, cwd })
+    if (install) {
+      try {
+        execFileSync('pnpm', ['install', '--frozen-lockfile'], { cwd: gwt, stdio: 'pipe' })
+      } catch (e) {
+        // 실패해도 worktree 생성 자체는 유효 — group complete push 시점에 재시도 가능.
+        // stdout 은 JSON 전용이므로 경고는 stderr 로.
+        process.stderr.write(
+          `⚠️ group worktree ${gk} pnpm install 실패 (group push 시 pre-push hook 주의): ${
+            e instanceof Error ? e.message : String(e)
+          }\n`,
+        )
+      }
+    }
+  }
+
+  // 2) task 마다 task worktree 생성 → dispatch entry
+  const dispatch: WaveDispatchTask[] = []
+  for (const t of tasks) {
+    const gk = t.group_key as string
+    const { path: wtPath } = await worktreeCreateTask({ groupKey: gk, taskClientId: t.client_id, cwd })
+    dispatch.push({
+      taskId: t.id,
+      clientId: t.client_id,
+      groupKey: gk,
+      worktree: wtPath,
+      model: t.recommended_model,
+    })
+  }
+  return dispatch
 }
 
 export interface ValidateDisjointInput {
@@ -261,6 +334,35 @@ export async function mergeWave(opts: MergeWaveOpts): Promise<MergeWaveResult> {
   return { merged_commits: mergedCommits }
 }
 
+/**
+ * plan state 를 가져와 해당 phase 의 모든 task 를 WaveTask[] 로 매핑.
+ * wave next / wave start / validate-disjoint 가 공유 (매핑 drift 방지).
+ */
+async function fetchPhaseTasks(phaseSlug: string): Promise<WaveTask[]> {
+  const planId = await requireField('plan_id')
+  const state = await getPlanState(planId, phaseSlug)
+  const allTasks: WaveTask[] = []
+  for (const g of state.groups) {
+    for (const t of g.tasks) {
+      allTasks.push({
+        id: t.id,
+        client_id: t.client_id,
+        phase_slug: t.phase_slug,
+        group_key: t.group_key,
+        description: t.description,
+        acceptance_criteria: t.acceptance_criteria,
+        test_file_path: t.test_file_path,
+        status: t.status,
+        depends_on_client_ids: t.depends_on_client_ids,
+        output_artifacts: t.output_artifacts,
+        sub_step: t.sub_step,
+        last_failed_event_meta: t.last_failed_event_meta,
+      })
+    }
+  }
+  return allTasks
+}
+
 export function waveCommand(program: Command): void {
   const wave = program.command('wave').description('wave 단위 task 병렬 호출 보조 명령 (AI-DLC Stage A)')
 
@@ -270,32 +372,29 @@ export function waveCommand(program: Command): void {
     .requiredOption('--phase <phaseSlug>', 'phase_slug')
     .action(async (opts: { phase: string }) => {
       assertValidPhaseSlug(opts.phase)
-      const planId = await requireField('plan_id')
-      const state = await getPlanState(planId, opts.phase)
-      const allTasks: WaveTask[] = []
-      for (const g of state.groups) {
-        for (const t of g.tasks) {
-          allTasks.push({
-            id: t.id,
-            client_id: t.client_id,
-            phase_slug: t.phase_slug,
-            group_key: t.group_key,
-            description: t.description,
-            acceptance_criteria: t.acceptance_criteria,
-            test_file_path: t.test_file_path,
-            status: t.status,
-            depends_on_client_ids: t.depends_on_client_ids,
-            output_artifacts: t.output_artifacts,
-            sub_step: t.sub_step,
-            last_failed_event_meta: t.last_failed_event_meta,
-          })
-        }
-      }
+      const allTasks = await fetchPhaseTasks(opts.phase)
       const result = computeNextWave({ tasks: allTasks, phaseSlug: opts.phase })
       // recommended_model 부착 — leader 가 wave next 결과만으로 worker model 을 정할 수 있게.
       console.log(
         JSON.stringify({ ...result, tasks: attachRecommendedModel(result.tasks) }, null, 2),
       )
+    })
+
+  wave
+    .command('start')
+    .description(
+      '다음 wave 의 worktree(group + task) 일괄 생성 + dispatch 배열 JSON 출력 ' +
+        '(wave next + worktree create-task 융합 — leader shell 루프 불필요)',
+    )
+    .requiredOption('--phase <phaseSlug>', 'phase_slug')
+    .action(async (opts: { phase: string }) => {
+      assertValidPhaseSlug(opts.phase)
+      const allTasks = await fetchPhaseTasks(opts.phase)
+      const { wave_index, tasks } = computeNextWave({ tasks: allTasks, phaseSlug: opts.phase })
+      const withModel = attachRecommendedModel(tasks)
+      const dispatch = await buildWaveDispatch(withModel)
+      // stdout 은 JSON 전용 — leader 가 .tasks 를 wave-codegen workflow args 로 직결.
+      console.log(JSON.stringify({ wave_index, tasks: dispatch }, null, 2))
     })
 
   wave
@@ -309,27 +408,8 @@ export function waveCommand(program: Command): void {
       for (const id of clientIds) {
         assertValidTaskClientId(id)
       }
-      const planId = await requireField('plan_id')
-      const state = await getPlanState(planId, opts.phase)
-      const targetTasks: WaveTask[] = []
-      for (const g of state.groups) {
-        for (const t of g.tasks) {
-          if (clientIds.includes(t.client_id)) {
-            targetTasks.push({
-              id: t.id,
-              client_id: t.client_id,
-              phase_slug: t.phase_slug,
-              group_key: t.group_key,
-              description: t.description,
-              acceptance_criteria: t.acceptance_criteria,
-              test_file_path: t.test_file_path,
-              status: t.status,
-              depends_on_client_ids: t.depends_on_client_ids,
-              output_artifacts: t.output_artifacts,
-            })
-          }
-        }
-      }
+      const allTasks = await fetchPhaseTasks(opts.phase)
+      const targetTasks = allTasks.filter((t) => clientIds.includes(t.client_id))
       const result = validateDisjoint({ tasks: targetTasks })
       console.log(JSON.stringify(result, null, 2))
       if (!result.ok) {
