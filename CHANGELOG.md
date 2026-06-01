@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.0] - 2026-06-01
+
+### Added
+
+- **`tokb wave next` 출력의 각 task 에 `recommended_model` 부착** (`'haiku' | 'sonnet'`). `sub_step → model` 매핑(+실패 시 `escalated_to_model` 우선)을 `worker prompt` 와 단일 출처(`resolveRecommendedModel`)로 공유한다. leader 가 `tokb wave next` 결과만으로 worker dispatch 의 model 을 정할 수 있어, wave-codegen Workflow 에 worker prompt 전문을 인라인할 필요가 없어진다(leader 부담 = Workflow 우회 동기 제거).
+
 ## [0.21.0] - 2026-05-29
 
 ### Changed

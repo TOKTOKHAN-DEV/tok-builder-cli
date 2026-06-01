@@ -8,6 +8,7 @@ import { getPlanState } from '../lib/api.js'
 import { requireField } from '../lib/config.js'
 import { assertValidGroupKey, assertValidPhaseSlug } from '../lib/group-key.js'
 import { assertValidTaskClientId } from '../lib/task-key.js'
+import { resolveRecommendedModel } from './worker.js'
 import { groupWorktreePath } from './worktree.js'
 
 export interface WaveTask {
@@ -21,6 +22,9 @@ export interface WaveTask {
   status: string
   depends_on_client_ids: string[] | null | undefined
   output_artifacts: Array<{ path: string; kind: string }> | null | undefined
+  // 권장 model 계산용 (wave next 출력에 recommended_model 부착) — computeNextWave 는 안 쓰고 보존만.
+  sub_step?: string | null
+  last_failed_event_meta?: { escalated_to_model?: 'haiku' | 'sonnet' } | null
 }
 
 export interface ComputeNextWaveInput {
@@ -97,6 +101,20 @@ export function computeNextWave(input: ComputeNextWaveInput): ComputeNextWaveRes
     wave_index: waveIndex,
     tasks: selected,
   }
+}
+
+export type WaveTaskWithModel = WaveTask & { recommended_model: 'haiku' | 'sonnet' }
+
+/**
+ * wave next 출력 task 에 recommended_model 부착.
+ * sub_step → model 매핑(+escalation 우선)은 worker prompt 와 단일 출처(resolveRecommendedModel) 공유.
+ * leader 가 wave next 결과만으로 worker dispatch model 을 정하게 해 `tokb worker prompt` 전문 fetch 를 없앤다.
+ */
+export function attachRecommendedModel(tasks: WaveTask[]): WaveTaskWithModel[] {
+  return tasks.map((t) => ({
+    ...t,
+    recommended_model: resolveRecommendedModel(t.sub_step, t.last_failed_event_meta?.escalated_to_model),
+  }))
 }
 
 export interface ValidateDisjointInput {
@@ -268,11 +286,16 @@ export function waveCommand(program: Command): void {
             status: t.status,
             depends_on_client_ids: t.depends_on_client_ids,
             output_artifacts: t.output_artifacts,
+            sub_step: t.sub_step,
+            last_failed_event_meta: t.last_failed_event_meta,
           })
         }
       }
       const result = computeNextWave({ tasks: allTasks, phaseSlug: opts.phase })
-      console.log(JSON.stringify(result, null, 2))
+      // recommended_model 부착 — leader 가 wave next 결과만으로 worker model 을 정할 수 있게.
+      console.log(
+        JSON.stringify({ ...result, tasks: attachRecommendedModel(result.tasks) }, null, 2),
+      )
     })
 
   wave
