@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { filterGroupTasks, groupCommand } from '../group';
+import { filterGroupTasks, groupCommand, reviewGate, type ReviewRecord } from '../group';
 import { Command } from 'commander';
 
 // node:child_process, node:fs, config, api mock
@@ -9,6 +9,10 @@ vi.mock('node:child_process', () => ({
 // group complete 가 group worktree 존재를 existsSync 로 가드 → mock 으로 통과
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(() => true),
+  readFileSync: vi.fn(() =>
+    JSON.stringify({ groupKey: 'auth', simplify: 'pass', security: 'pass', reviewed_at: 'x' }),
+  ),
+  writeFileSync: vi.fn(),
   mkdirSync: vi.fn(),
   readdirSync: vi.fn(() => []),
 }))
@@ -20,6 +24,7 @@ vi.mock('../../lib/api.js', () => ({
 }))
 
 import { execFileSync } from 'node:child_process'
+import { existsSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { requireField } from '../../lib/config.js'
 import { getProjectState } from '../../lib/api.js'
@@ -198,5 +203,85 @@ describe('group complete', () => {
 
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('PR already exists'))
     consoleSpy.mockRestore()
+  })
+
+  it('review 기록 없음 → process.exit(1) + review 안내 (push/pr 호출 X)', async () => {
+    vi.mocked(getProjectState).mockResolvedValue({ plan: null, run: null, tasks: allDoneTasks })
+    // review path 만 부재 — group worktree 는 존재
+    vi.mocked(existsSync).mockImplementation((p) => !String(p).includes('reviews'))
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('process.exit') }) as never)
+
+    const program = makeProgram()
+    await expect(
+      program.parseAsync(['group', 'complete', 'auth'], { from: 'user' }),
+    ).rejects.toThrow()
+
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('review'))
+    expect(vi.mocked(execFileSync)).not.toHaveBeenCalled() // push/pr 도달 X
+    vi.mocked(existsSync).mockReturnValue(true) // 복원
+    exitSpy.mockRestore()
+    errSpy.mockRestore()
+  })
+});
+
+describe('group review', () => {
+  beforeEach(() => {
+    vi.mocked(requireField).mockResolvedValue('project-uuid-1' as never)
+    vi.mocked(writeFileSync).mockClear()
+  })
+
+  it('verdict 를 .tokb/reviews/<gk>.json 에 기록', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const program = makeProgram()
+    await program.parseAsync(
+      ['group', 'review', 'auth', '--simplify', 'pass', '--security', 'pass'],
+      { from: 'user' },
+    )
+
+    expect(vi.mocked(writeFileSync)).toHaveBeenCalled()
+    const call = vi.mocked(writeFileSync).mock.calls[0]
+    expect(String(call[0])).toContain(path.join('.tokb', 'reviews', 'auth.json'))
+    const rec = JSON.parse(call[1] as string)
+    expect(rec).toMatchObject({ groupKey: 'auth', simplify: 'pass', security: 'pass' })
+    expect(rec.reviewed_at).toBeTruthy()
+    consoleSpy.mockRestore()
+  })
+
+  it('잘못된 verdict 값 → 거부 (commander choices)', async () => {
+    const program = makeProgram()
+    await expect(
+      program.parseAsync(
+        ['group', 'review', 'auth', '--simplify', 'maybe', '--security', 'pass'],
+        { from: 'user' },
+      ),
+    ).rejects.toThrow()
+  })
+});
+
+describe('reviewGate — group complete 의 simplify+security review 게이트', () => {
+  const base: ReviewRecord = {
+    groupKey: 'auth',
+    simplify: 'pass',
+    security: 'pass',
+    reviewed_at: '2026-06-01T00:00:00.000Z',
+  }
+
+  it('review 기록 없음(null) — 차단 + 안내', () => {
+    const r = reviewGate(null)
+    expect(r.ok).toBe(false)
+    expect(r.reason).toMatch(/review/)
+  })
+
+  it('simplify=issues — 차단 (이슈 수정 후 재기록 필요)', () => {
+    expect(reviewGate({ ...base, simplify: 'issues' }).ok).toBe(false)
+  })
+
+  it('security=issues — 차단', () => {
+    expect(reviewGate({ ...base, security: 'issues' }).ok).toBe(false)
+  })
+
+  it('simplify + security 둘 다 pass — 통과', () => {
+    expect(reviewGate(base).ok).toBe(true)
   })
 });

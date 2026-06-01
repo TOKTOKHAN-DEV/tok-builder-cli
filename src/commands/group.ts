@@ -1,10 +1,61 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { Command } from 'commander'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import path from 'node:path'
+import { Command, Option } from 'commander'
 import { getProjectState } from '../lib/api.js'
 import { requireField } from '../lib/config.js'
 import { assertValidGroupKey } from '../lib/group-key.js'
 import { groupWorktreePath } from './worktree.js'
+
+export type ReviewVerdict = 'pass' | 'issues'
+
+export interface ReviewRecord {
+  groupKey: string
+  simplify: ReviewVerdict
+  security: ReviewVerdict
+  reviewed_at: string
+}
+
+/**
+ * group complete 의 review 게이트 — simplify + security review 가 둘 다 pass 여야 PR 생성/머지로 진행.
+ * 기록 없음(null) 또는 한쪽이라도 issues → 차단. issues 는 수정 후 `tokb group review` 재기록 필요.
+ * review 를 빌드 시스템에 강제해 개인 글로벌 룰에 의존하지 않게 한다 — 다른 사람/빌드 머신에서도 동일 작동.
+ */
+export function reviewGate(record: ReviewRecord | null): { ok: boolean; reason?: string } {
+  if (!record) {
+    return {
+      ok: false,
+      reason: 'review 기록 없음 — `tokb group review <gk>` 로 simplify + security review 결과를 먼저 기록하세요.',
+    }
+  }
+  if (record.simplify !== 'pass' || record.security !== 'pass') {
+    return {
+      ok: false,
+      reason: `review 미통과 (simplify=${record.simplify}, security=${record.security}) — 이슈 수정 후 \`tokb group review\` 로 재기록하세요.`,
+    }
+  }
+  return { ok: true }
+}
+
+export function reviewRecordPath(cwd: string, groupKey: string): string {
+  return path.join(cwd, '.tokb', 'reviews', `${groupKey}.json`)
+}
+
+function readReviewRecord(cwd: string, groupKey: string): ReviewRecord | null {
+  const p = reviewRecordPath(cwd, groupKey)
+  if (!existsSync(p)) return null
+  try {
+    return JSON.parse(readFileSync(p, 'utf8')) as ReviewRecord
+  } catch {
+    return null
+  }
+}
+
+function writeReviewRecord(cwd: string, record: ReviewRecord): void {
+  const p = reviewRecordPath(cwd, record.groupKey)
+  mkdirSync(path.dirname(p), { recursive: true })
+  writeFileSync(p, JSON.stringify(record, null, 2))
+}
 
 export function filterGroupTasks<
   T extends { group_key: string | null; phase_slug: string },
@@ -42,8 +93,36 @@ export function groupCommand(program: Command): void {
     })
 
   group
+    .command('review <groupKey>')
+    .description(
+      'group 의 simplify + security review 결과 기록 (group complete 의 머지 전 게이트). ' +
+        '이슈 발견 시 수정 후 재기록. 둘 다 pass 여야 group complete 가 PR 생성/머지로 진행.',
+    )
+    .addOption(
+      new Option('--simplify <verdict>', 'simplify review 결과').choices(['pass', 'issues']).makeOptionMandatory(),
+    )
+    .addOption(
+      new Option('--security <verdict>', 'security review 결과').choices(['pass', 'issues']).makeOptionMandatory(),
+    )
+    .action(async (groupKey: string, opts: { simplify: ReviewVerdict; security: ReviewVerdict }) => {
+      assertValidGroupKey(groupKey)
+      const record: ReviewRecord = {
+        groupKey,
+        simplify: opts.simplify,
+        security: opts.security,
+        reviewed_at: new Date().toISOString(),
+      }
+      writeReviewRecord(process.cwd(), record)
+      const gate = reviewGate(record)
+      console.log(
+        `✓ group '${groupKey}' review 기록 (simplify=${opts.simplify}, security=${opts.security})` +
+          (gate.ok ? '' : ` — ⚠️ ${gate.reason}`),
+      )
+    })
+
+  group
     .command('complete <groupKey>')
-    .description('group 모든 task done 시 PR 생성 trigger')
+    .description('group 모든 task done + review pass 시 PR 생성 trigger')
     .option('--dry-run', '실 실행 없이 조건 확인만')
     .option('--phase <slug>', '특정 phase 로 범위 제한')
     .action(async (groupKey: string, opts: { dryRun?: boolean; phase?: string }) => {
@@ -71,6 +150,14 @@ export function groupCommand(program: Command): void {
       if (opts.dryRun) {
         console.log('--dry-run: 실 PR 생성 skip')
         return
+      }
+
+      // review 게이트 — simplify + security review 가 둘 다 pass 여야 PR 생성/머지로 진행.
+      // review 를 빌드 시스템에 강제 (개인 글로벌 룰 의존 X — 다른 사람/빌드 머신에서도 동일 작동).
+      const gate = reviewGate(readReviewRecord(process.cwd(), groupKey))
+      if (!gate.ok) {
+        console.error(`group '${groupKey}' ${gate.reason}`)
+        process.exit(1)
       }
 
       const branch = `feat/${groupKey}-group`
