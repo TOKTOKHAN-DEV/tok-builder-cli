@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.25.0] - 2026-06-01
+
+### Fixed
+
+- **토큰 끊김 재개 — `computeNextWave`(→ `wave start`/`wave next`)가 stale `in_progress` task 를 다음 wave 후보로 흡수.** worker 가 작업 중 토큰 리미트로 끊기면 task 가 `in_progress` 로 남는데, 옛 동작은 `pending` 만 wave 후보로 잡아 그 task 를 영영 방치했다 (재시도해도 누락 — frontend wave 의 t-026 사고). wave start 시점은 이전 wave 가 끝난 시점이라 남은 `in_progress` 는 끊긴 것이 확정 → `pending` 과 동일하게 후보(의존성·disjoint 규칙 동일 적용)로 흡수해 **재투입**한다(worker 가 이어서 완성). 끊겨도 화면 누락 0. ⚠️ 재개 흡수는 wave 계산부에만 — SessionStart/compact hook 에서 in_progress 를 건드리면 작업 중 task 를 날린다. (재투입 시 기존 task worktree 를 이어쓰므로 깨끗한 base reset 은 후속.)
+
 ## [0.24.0] - 2026-06-01
 
 ### Added
