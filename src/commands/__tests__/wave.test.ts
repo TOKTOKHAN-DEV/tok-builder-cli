@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
-import { computeNextWave, validateDisjoint, mergeWave, attachRecommendedModel, buildWaveDispatch, type WaveTask, type WaveTaskWithModel } from '../wave'
+import { computeNextWave, validateDisjoint, mergeWave, attachRecommendedModel, buildWaveDispatch, partitionByGroup, type WaveTask, type WaveTaskWithModel } from '../wave'
 
 const baseTask: Omit<WaveTask, 'client_id' | 'status' | 'depends_on_client_ids' | 'output_artifacts'> = {
   id: 'uuid-x',
@@ -465,5 +465,40 @@ describe('buildWaveDispatch', () => {
     } finally {
       rmSync(repo, { recursive: true, force: true })
     }
+  })
+})
+
+// partitionByGroup: wave 전체 task 를 group_key 별로 분류 (leader 셸 루프 제거 — cli 가 분류).
+// wave merge 가 group 자동 분류 모드에서 사용. 입력 순서 보존 (cherry-pick 은 task_client_id 순).
+describe('partitionByGroup', () => {
+  it('빈 입력 — 빈 배열', () => {
+    expect(partitionByGroup([])).toEqual([])
+  })
+
+  it('단일 group 여러 task — 1 그룹, client_id 순서 보존', () => {
+    const result = partitionByGroup([
+      { client_id: 'T-001', group_key: 'auth' },
+      { client_id: 'T-002', group_key: 'auth' },
+    ])
+    expect(result).toEqual([{ groupKey: 'auth', taskClientIds: ['T-001', 'T-002'] }])
+  })
+
+  it('여러 group 섞임 — group 별 분리, 각 group 의 client_id 순서·group 첫 등장 순서 보존', () => {
+    const result = partitionByGroup([
+      { client_id: 'T-001', group_key: 'auth' },
+      { client_id: 'T-002', group_key: 'vehicle' },
+      { client_id: 'T-003', group_key: 'auth' },
+      { client_id: 'T-004', group_key: 'vehicle' },
+    ])
+    expect(result).toEqual([
+      { groupKey: 'auth', taskClientIds: ['T-001', 'T-003'] },
+      { groupKey: 'vehicle', taskClientIds: ['T-002', 'T-004'] },
+    ])
+  })
+
+  it('group_key null — throw (분류 불가)', () => {
+    expect(() =>
+      partitionByGroup([{ client_id: 'T-001', group_key: null }]),
+    ).toThrow(/group_key/)
   })
 })

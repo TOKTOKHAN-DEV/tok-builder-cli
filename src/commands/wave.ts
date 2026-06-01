@@ -51,6 +51,30 @@ function taskFilePaths(t: WaveTask): string[] {
 }
 
 /**
+ * wave 전체 task 를 group_key 별로 분류한다 (group 첫 등장 순서 + 각 group 안 client_id 입력 순서 보존).
+ * `tokb wave merge` 의 group 자동 분류 모드가 사용 — leader 가 wave 의 task 를 group 별로 직접 나눠
+ * `for g in $groups; do tokb wave merge --group $g ...` 셸 루프를 짜던 흐름(zsh 단어 분리로 깨짐)을 제거.
+ * 분류를 cli 로 옮겨 worktree 생성 면역화(buildWaveDispatch)와 같은 철학으로 셸 루프 자체를 없앤다.
+ */
+export function partitionByGroup(
+  tasks: Array<{ client_id: string; group_key: string | null }>,
+): Array<{ groupKey: string; taskClientIds: string[] }> {
+  const order: string[] = []
+  const byGroup = new Map<string, string[]>()
+  for (const t of tasks) {
+    if (!t.group_key) {
+      throw new Error(`task ${t.client_id} 의 group_key 가 없어 group 분류 불가`)
+    }
+    if (!byGroup.has(t.group_key)) {
+      byGroup.set(t.group_key, [])
+      order.push(t.group_key)
+    }
+    byGroup.get(t.group_key)!.push(t.client_id)
+  }
+  return order.map((groupKey) => ({ groupKey, taskClientIds: byGroup.get(groupKey)! }))
+}
+
+/**
  * 다음 wave 의 task 집합 반환 (phase-wide).
  * 정의: phase 안에서 status='pending' + 모든 depends_on_client_ids 의 task 가 status='done' 인 task.
  *   - group 경계 무관 — 같은 phase 면 서로 다른 group 의 task 도 한 wave 로 병렬화한다
@@ -419,18 +443,56 @@ export function waveCommand(program: Command): void {
 
   wave
     .command('merge')
-    .description('task branch 들의 commits 을 group branch (feat/<group>-group) 로 cherry-pick (task_client_id 순)')
-    .requiredOption('--group <groupKey>', 'group_key')
-    .requiredOption('--tasks <ids>', '쉼표 분리 task client_id 들')
-    .action(async (opts: { group: string; tasks: string }) => {
-      assertValidGroupKey(opts.group)
+    .description(
+      'task branch 들의 commits 을 group branch (feat/<group>-group) 로 cherry-pick (task_client_id 순). ' +
+        '--group 생략 시 --phase 의 plan state 로 group 자동 분류 — leader 가 group 별 셸 루프를 짜지 않게 한다 (zsh 단어 분리 면역).',
+    )
+    .option('--group <groupKey>', 'group_key (단일 group 모드). 생략 시 --phase 필수 — wave 전체 task 를 group 자동 분류')
+    .option('--phase <slug>', 'group 자동 분류 모드의 plan state 조회용 phase_slug')
+    .requiredOption('--tasks <ids>', '쉼표 분리 task client_id 들 (단일 group 또는 wave 전체)')
+    .action(async (opts: { group?: string; phase?: string; tasks: string }) => {
       const taskClientIds = opts.tasks.split(',').map((s) => s.trim()).filter(Boolean)
       for (const id of taskClientIds) {
         assertValidTaskClientId(id)
       }
+
+      // 단일 group 모드 (기존 흐름 — 하위호환)
+      if (opts.group) {
+        assertValidGroupKey(opts.group)
+        try {
+          const result = await mergeWave({ groupKey: opts.group, taskClientIds })
+          console.log(JSON.stringify(result, null, 2))
+        } catch (e) {
+          console.error('✗', e instanceof Error ? e.message : String(e))
+          process.exit(1)
+        }
+        return
+      }
+
+      // group 자동 분류 모드 — cli 가 wave 전체 task 를 group_key 별로 나눠 순차 cherry-pick.
+      // leader 가 `for g in $groups; do tokb wave merge --group $g ...` 셸 루프(zsh 단어 분리로 깨짐)를 짤 필요 없음.
+      if (!opts.phase) {
+        console.error('✗ --group 생략 시 --phase 필수 (group 자동 분류용)')
+        process.exit(1)
+      }
+      assertValidPhaseSlug(opts.phase)
       try {
-        const result = await mergeWave({ groupKey: opts.group, taskClientIds })
-        console.log(JSON.stringify(result, null, 2))
+        const phaseTasks = await fetchPhaseTasks(opts.phase)
+        const picked = taskClientIds.map((id) => {
+          const t = phaseTasks.find((pt) => pt.client_id === id)
+          if (!t) throw new Error(`task ${id} 가 phase ${opts.phase} 의 plan state 에 없음`)
+          return { client_id: id, group_key: t.group_key }
+        })
+        const groups = partitionByGroup(picked)
+        for (const g of groups) {
+          assertValidGroupKey(g.groupKey)
+        }
+        const results: Array<{ group: string } & Awaited<ReturnType<typeof mergeWave>>> = []
+        for (const g of groups) {
+          const result = await mergeWave({ groupKey: g.groupKey, taskClientIds: g.taskClientIds })
+          results.push({ group: g.groupKey, ...result })
+        }
+        console.log(JSON.stringify(results, null, 2))
       } catch (e) {
         console.error('✗', e instanceof Error ? e.message : String(e))
         process.exit(1)
