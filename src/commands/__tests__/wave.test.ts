@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
-import { computeNextWave, validateDisjoint, mergeWave, type WaveTask } from '../wave'
+import { computeNextWave, validateDisjoint, mergeWave, attachRecommendedModel, type WaveTask } from '../wave'
 
 const baseTask: Omit<WaveTask, 'client_id' | 'status' | 'depends_on_client_ids' | 'output_artifacts'> = {
   id: 'uuid-x',
@@ -153,6 +153,40 @@ describe('computeNextWave (phase-wide)', () => {
     ]
     const result = computeNextWave({ tasks, phaseSlug: 'backend' })
     expect(result.wave_index).toBeGreaterThan(0)
+  })
+})
+
+describe('attachRecommendedModel', () => {
+  it('sub_step 매핑 — build_test/infra → haiku, functional/codegen → sonnet', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [], sub_step: 'build_test' },
+      { ...baseTask, client_id: 'T-002', status: 'pending', depends_on_client_ids: [], output_artifacts: [], sub_step: 'codegen' },
+    ]
+    const out = attachRecommendedModel(tasks)
+    expect(out.find((t) => t.client_id === 'T-001')?.recommended_model).toBe('haiku')
+    expect(out.find((t) => t.client_id === 'T-002')?.recommended_model).toBe('sonnet')
+  })
+
+  it('sub_step 없음/이상값 → sonnet 폴백', () => {
+    const tasks: WaveTask[] = [
+      { ...baseTask, client_id: 'T-001', status: 'pending', depends_on_client_ids: [], output_artifacts: [] },
+    ]
+    expect(attachRecommendedModel(tasks)[0].recommended_model).toBe('sonnet')
+  })
+
+  it('escalated_to_model 이 sub_step 매핑보다 우선', () => {
+    const tasks: WaveTask[] = [
+      {
+        ...baseTask,
+        client_id: 'T-001',
+        status: 'pending',
+        depends_on_client_ids: [],
+        output_artifacts: [],
+        sub_step: 'build_test', // 평소 haiku
+        last_failed_event_meta: { escalated_to_model: 'sonnet' },
+      },
+    ]
+    expect(attachRecommendedModel(tasks)[0].recommended_model).toBe('sonnet')
   })
 })
 
