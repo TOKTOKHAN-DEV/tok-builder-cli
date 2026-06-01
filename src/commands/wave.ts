@@ -76,7 +76,7 @@ export function partitionByGroup(
 
 /**
  * 다음 wave 의 task 집합 반환 (phase-wide).
- * 정의: phase 안에서 status='pending' + 모든 depends_on_client_ids 의 task 가 status='done' 인 task.
+ * 정의: phase 안에서 status='pending' 또는 'in_progress' + 모든 depends_on_client_ids 의 task 가 status='done' 인 task (in_progress 흡수 배경은 candidates 주석 참조).
  *   - group 경계 무관 — 같은 phase 면 서로 다른 group 의 task 도 한 wave 로 병렬화한다
  *     (병렬 단위 = group 이 아니라 task. group 은 PR/표시 라벨일 뿐).
  *   - disjoint-aware: 후보 중 output_artifacts(파일) 가 서로 겹치지 않는 task 를 client_id 순 greedy 로 선택.
@@ -91,8 +91,11 @@ export function computeNextWave(input: ComputeNextWaveInput): ComputeNextWaveRes
   const totalCount = inPhase.length
   const allDoneCount = doneSet.size
 
+  // pending + in_progress 를 후보로. in_progress 흡수 = 토큰 끊김 재개:
+  // worker 가 작업 중 끊기면 task 가 in_progress 로 남는데, wave start 시점(= 이전 wave 완료)의
+  // in_progress 는 stale(끊긴 것)이라 다음 wave 로 재투입해야 누락이 안 생긴다 (옛 pending-only 는 방치 → t-026 사고).
   const candidates = inPhase.filter((t) => {
-    if (t.status !== 'pending') return false
+    if (t.status !== 'pending' && t.status !== 'in_progress') return false
     const deps = t.depends_on_client_ids ?? []
     return deps.every((dep) => doneSet.has(dep))
   })
