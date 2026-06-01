@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.24.0] - 2026-06-01
+
+### Added
+
+- **`tokb group review <gk> --simplify <pass|issues> --security <pass|issues>`** — group 의 simplify + security review 결과를 `.tokb/reviews/<gk>.json` 에 기록. `group complete` 의 머지 전 게이트로 작동: 두 review 가 모두 `pass` 여야 PR 생성/머지로 진행하고, 기록 없음 / `issues` 면 차단(이슈 수정 후 재기록). review 강제를 빌드 시스템에 내장 — 개인 글로벌 룰에 의존하지 않아 다른 사람 / 빌드 머신에서도 동일하게 작동.
+- **`tokb wave merge` 의 group 자동 분류 모드** — `--group` 생략 + `--phase <slug>` 지정 시, cli 가 wave 전체 task(`--tasks`)를 plan state 의 `group_key` 로 분류해 group 별로 순차 cherry-pick. leader 가 `for g in $groups; do tokb wave merge --group $g …` 셸 루프(zsh 단어 분리로 깨짐)를 짤 필요를 제거 — worktree 생성 면역화(0.23.0)와 같은 철학. 기존 `--group --tasks` 단일 모드는 하위호환 유지.
+
+### Changed
+
+- **worker prompt 의 bypass / enforce 흐름에 `tokb task criteria` 보고 단계 추가** — task done 직전에 충족 정량(+정성) criterion 인덱스를 보고하도록 명시. 이 단계가 빠져 있어 task 는 done 인데 acceptance criteria 체크박스가 0/N 으로 남던 문제 해결(특히 bypass phase 는 platform 게이트도 없어 조용히 통과). enforce phase 는 done 게이트(422) 통과를 위해서도 필수.
+
 ## [0.23.0] - 2026-06-01
 
 ### Added
