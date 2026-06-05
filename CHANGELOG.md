@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.26.0] - 2026-06-05
+
+### Changed
+
+- **부트스트랩 사전 점검(preflight) 에러 안내를 비개발자 기준으로 상세화** (`install.sh` + `src/lib/preflight.ts`). 막힌 항목마다 `[무엇이 막혔나] → [복붙할 정확한 명령] → [그래도 안 되면 누구에게]` 구조로 안내한다. Node 미설치/버전낮음(nodejs.org·`brew install node`), git 미설치(`xcode-select --install`), gh CLI 미설치(`brew install gh`), gh 인증 안 됨(`gh auth login --web --git-protocol https --scopes "read:org,read:packages"` + 브라우저·8자리 코드 안내), 조직 멤버 아님(현재 로그인 계정 노출 + 회사 계정 재로그인 + 관리자 초대 요청) 전부 커버. 빌드 담당자에 비개발자가 많아 "gh 연결 실패 후 무엇을 해야 할지 안내 부재"로 끝나던 문제 해결.
+- **`install.sh` 사전 점검이 막힌 항목을 모아서 한 번에 안내** (기존: 첫 실패에서 즉시 중단 → 하나 고치고 재실행 반복). Node 없으면 이후 검사 스킵 등 의존 순서는 유지.
+- **default platform URL 을 운영 정식 도메인 `https://builder.toktokhan.dev` 로 통일** (`install.sh` fallback `pj-platform-nine.vercel.app`, `init.ts` 기본값 `pj-platform.vercel.app` → 둘 다 교체). 정상 흐름은 platform 이 `TOKB_PLATFORM_URL`(요청 origin)을 주입하므로 환경별 자동 분리가 그대로 유지되고, fallback 은 URL 미지정 수동 실행 시의 안전망(운영 추정).
+
+### Added
+
+- **`read:packages` 권한 사전 검사** (`install.sh` + `preflight.ts`). gh 인증은 됐지만 토큰에 `read:packages` scope 가 없으면 한참 뒤 `pnpm install`(`@toktokhan-dev/*`)이 401 로 실패하던 함정을, 사전 점검 단계에서 미리 감지해 `gh auth refresh -h github.com -s read:packages -s read:org` 를 안내한다. (`gh auth login --web` 기본 scope 에 `read:packages` 미포함)
+
 ## [0.25.0] - 2026-06-01
 
 ### Fixed

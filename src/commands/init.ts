@@ -28,7 +28,7 @@ export function initCommand(program: Command): void {
     .command('init')
     .argument('<token>', 'tokb_apt_* token')
     .description('토큰 검증 + 프로젝트 정보 저장 + design assets bootstrap')
-    .option('--platform-url <url>', 'platform 기본 URL', 'https://pj-platform.vercel.app')
+    .option('--platform-url <url>', 'platform 기본 URL', 'https://builder.toktokhan.dev')
     .action(async (token: string, opts: { platformUrl: string }) => {
       console.log('=== 사전 점검 ===')
       const pf = runPreflight()

@@ -15,7 +15,7 @@ const ConfigSchema = z.object({
   repo_url: httpsUrl.optional(),
   vercel_url: httpsUrl.optional(),
   supabase_url: httpsUrl.optional(),
-  platform_base_url: httpsUrl.default('https://pj-platform.vercel.app'),
+  platform_base_url: httpsUrl.default('https://builder.toktokhan.dev'),
 })
 
 export type Config = z.infer<typeof ConfigSchema>
