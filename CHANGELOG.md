@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.26.1] - 2026-06-05
+
+### Fixed
+
+- **`read:packages` scope 검사 false positive** (`install.sh` + `preflight.ts`). 0.26.0 의 scope 검사가 `read:packages` 문자열만 봐서, **`write:packages` 보유 토큰**(read 를 포함하므로 실제로는 패키지 읽기 가능 — 주로 개발자·관리자 계정)에 불필요한 경고를 띄웠다. `(read|write):packages` 로 완화 — 둘 중 하나만 있어도 통과. (실환경 재현·수정 확인: `write:packages` 보유 계정에서 사전 점검 통과)
+
 ## [0.26.0] - 2026-06-05
 
 ### Changed

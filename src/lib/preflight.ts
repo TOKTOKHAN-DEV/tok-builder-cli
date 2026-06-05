@@ -61,7 +61,8 @@ export function runPreflight(): PreflightResult {
   }
 
   // read:packages 권한 (없으면 @toktokhan-dev/* 의존성 설치가 401 로 실패)
-  if (!/read:packages/i.test(authOut)) {
+  // write:packages 는 read:packages 를 포함하므로 둘 중 하나만 있어도 통과.
+  if (!/(read|write):packages/i.test(authOut)) {
     failures.push(
       "GitHub 토큰에 'read:packages' 권한이 없습니다 (이대로면 의존성 설치가 401 오류로 실패)\n" +
         '      → 권한만 추가하세요 (브라우저로 재인증):\n' +
