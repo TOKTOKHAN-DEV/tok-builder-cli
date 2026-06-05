@@ -71,7 +71,8 @@ if command -v gh >/dev/null 2>&1; then
   else
     echo "✓ gh 인증"
     # read:packages 권한이 없으면 뒤에서 pnpm install(@toktokhan-dev/*) 이 401 로 실패한다 — 미리 차단.
-    if ! printf '%s' "$AUTH_OUT" | grep -qi "read:packages"; then
+    # write:packages 는 read:packages 를 포함하므로 둘 중 하나만 있어도 통과.
+    if ! printf '%s' "$AUTH_OUT" | grep -qiE "(read|write):packages"; then
       FAILS+=("GitHub 토큰에 'read:packages' 권한이 없습니다. (이대로 진행하면 잠시 뒤 의존성 설치가 401 오류로 실패합니다)
       → 권한만 추가하면 됩니다 (브라우저로 재인증):
           gh auth refresh -h github.com -s read:packages -s read:org")
