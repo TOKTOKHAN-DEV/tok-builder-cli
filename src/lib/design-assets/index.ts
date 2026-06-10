@@ -4,9 +4,7 @@ import { join, dirname } from 'node:path';
 
 import { generateGlobalsCss } from './generate-globals-css.js';
 import { parseDesignMd } from './parse-design-md.js';
-import { pruneDesignIcons } from './prune-design-icons.js';
 import { safeParseDesignTokens } from './schema.js';
-import type { IconStyle } from './schema.js';
 
 export interface BootstrapDesignAssetsArgs {
   /** build repo 루트 (=`tokb init` 실행 위치) */
@@ -17,8 +15,6 @@ export interface BootstrapDesignAssetsArgs {
 
 export interface BootstrapDesignAssetsResult {
   globalsCssPath: string;
-  iconsDir: string;
-  iconCount: number;
   committed: boolean;
   pushed: boolean;
 }
@@ -57,19 +53,12 @@ export function bootstrapDesignAssets(
   mkdirSync(dirname(globalsCssPath), { recursive: true });
   writeFileSync(globalsCssPath, css, 'utf-8');
 
-  // 4. 아이콘 정리 (template 이 6 style 다 들고 있고, 1 style 만 유지)
-  const iconStyle = validated.data.icons.style;
-  const pruneResult = pruneDesignIcons({
-    keepStyle: iconStyle,
-    targetRepoRoot: repoRoot,
-  });
-
-  // 5. git commit + push
+  // 4. git commit + push (아이콘은 lucide-react 로 통일 — 별도 자산 처리 없음)
   let committed = false;
   let pushed = false;
   if (!skipCommit) {
     try {
-      execSync('git add app/globals.css src/assets/icons', {
+      execSync('git add app/globals.css', {
         cwd: repoRoot,
         stdio: 'pipe',
       });
@@ -103,11 +92,7 @@ export function bootstrapDesignAssets(
 
   return {
     globalsCssPath,
-    iconsDir: pruneResult.keptDir,
-    iconCount: pruneResult.keptCount,
     committed,
     pushed,
   };
 }
-
-export type { IconStyle };

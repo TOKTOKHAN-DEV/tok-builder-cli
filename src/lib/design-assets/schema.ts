@@ -133,28 +133,6 @@ export const SpacingSchema = z
 
 export type Spacing = z.infer<typeof SpacingSchema>;
 
-// ─── Icons ───────────────────────────────────────────────────────────────────
-
-// flaticon UIcons 6 variants (weight × shape). 부트스트랩이 design.md의 style 값을
-// 그대로 폴더 이름(`assets/icons/{style}/`)으로 사용하므로 enum 값과 폴더 이름이 1:1.
-export const IconStyleSchema = z.enum([
-  'regular_straight',
-  'regular_rounded',
-  'bold_straight',
-  'bold_rounded',
-  'solid_straight',
-  'solid_rounded',
-]);
-export type IconStyle = z.infer<typeof IconStyleSchema>;
-
-export const IconsSchema = z.object({
-  style: IconStyleSchema,
-  source: z.literal('flaticon-uicons'),
-  rationale: z.string().min(10),
-});
-
-export type Icons = z.infer<typeof IconsSchema>;
-
 // ─── Components ──────────────────────────────────────────────────────────────
 
 const RequiredComponents = z.object({
@@ -196,7 +174,6 @@ export const DesignTokensSchema = z.object({
   typography: TypographySchema,
   rounded: RoundedSchema,
   spacing: SpacingSchema,
-  icons: IconsSchema,
   components: ComponentsSchema,
   motion: MotionSchema,
 });
