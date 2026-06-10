@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.27.0] - 2026-06-10
+
+### Changed
+
+- **아이콘 시스템 lucide 단일 통일** (`design-assets`). 빌드 산출물의 아이콘을 `lucide-react` 하나로 통일(PO 결정 — consistency 우선)하면서 bootstrap 의 Flaticon 자산 처리를 제거했다.
+  - `bootstrapDesignAssets` 가 더 이상 `src/assets/icons` 의 style별 폴더를 prune 하지 않는다 (이제 globals.css 생성만). `git add` 대상도 `app/globals.css` 만.
+  - `prune-design-icons` 모듈 + 테스트 삭제.
+  - design token 스키마에서 `icons` 필드(Flaticon `style`/`source`/`rationale`) 제거. 스키마가 `.strict()` 가 아니라 기존 design.md 에 `icons` 섹션이 남아 있어도 무시되어 검증은 통과(하위호환). template(lucide 통일) + platform(design 생성에서 icons 제거)과 정합.
+
 ## [0.26.1] - 2026-06-05
 
 ### Fixed

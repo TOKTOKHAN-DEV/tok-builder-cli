@@ -90,10 +90,6 @@ spacing:
     lg:   "1024px"
     xl:   "1280px"
     2xl:  "1536px"
-icons:
-  style: regular_straight
-  source: flaticon-uicons
-  rationale: pilot default for clarity and modern look
 components:
   button-primary:
     background: '{colors.primary.500}'
@@ -119,49 +115,23 @@ motion:
 # Body
 `;
 
-const STYLES = [
-  'regular_straight', 'regular_rounded',
-  'bold_straight', 'bold_rounded',
-  'solid_straight', 'solid_rounded',
-] as const;
-
-function seedTemplateAssets(repoRoot: string): void {
-  const iconsRoot = join(repoRoot, 'src/assets/icons');
-  for (const style of STYLES) {
-    const dir = join(iconsRoot, style);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'fi-bell.svg'), '<svg/>');
-    writeFileSync(join(dir, 'fi-home.svg'), '<svg/>');
-  }
-  writeFileSync(join(iconsRoot, 'icon-manifest.json'), '{}');
-}
-
 describe('bootstrapDesignAssets', () => {
   let tmpRepo: string;
 
   beforeEach(() => {
     tmpRepo = mkdtempSync(join(tmpdir(), 'bootstrap-test-'));
     mkdirSync(join(tmpRepo, '.tokb'), { recursive: true });
-    seedTemplateAssets(tmpRepo);
   });
 
   afterEach(() => {
     rmSync(tmpRepo, { recursive: true, force: true });
   });
 
-  it('정상 design.md 전체 흐름 성공 (5 폴더 정리 + 1 유지)', () => {
+  it('정상 design.md 전체 흐름 성공 (globals.css 생성)', () => {
     writeFileSync(join(tmpRepo, '.tokb/design.md'), validDesignMd);
     const result = bootstrapDesignAssets({ repoRoot: tmpRepo, skipCommit: true });
 
     expect(existsSync(result.globalsCssPath)).toBe(true);
-    expect(existsSync(result.iconsDir)).toBe(true);
-    expect(result.iconCount).toBe(2); // seed 의 2 SVG
-
-    expect(existsSync(join(tmpRepo, 'src/assets/icons/regular_straight'))).toBe(true);
-    for (const style of STYLES) {
-      if (style === 'regular_straight') continue;
-      expect(existsSync(join(tmpRepo, 'src/assets/icons', style))).toBe(false);
-    }
 
     const css = readFileSync(result.globalsCssPath, 'utf-8');
     expect(css).toContain('@import "tailwindcss";');
@@ -184,27 +154,12 @@ describe('bootstrapDesignAssets', () => {
     );
   });
 
-  it('template 자산이 없으면 throw (icons root missing)', () => {
-    rmSync(join(tmpRepo, 'src/assets/icons'), { recursive: true });
-    writeFileSync(join(tmpRepo, '.tokb/design.md'), validDesignMd);
-    expect(() => bootstrapDesignAssets({ repoRoot: tmpRepo, skipCommit: true })).toThrow(
-      /src\/assets\/icons\//,
-    );
-  });
-
   // 사용자 실제 build repo 의 design.md fixture — 도메인 정보 포함이라 git 비커밋 (의도).
   // 로컬 머신에선 실행, CI 에선 skip.
   const realFixturePath = join(__dirname, 'real-design-md.fixture.md');
   it.skipIf(!existsSync(realFixturePath))('real design.md (사용자 build repo) — globals.css 에 unresolved ref 없음 + 기본 구조 통과', () => {
     const realDesignMd = readFileSync(realFixturePath, 'utf-8');
     writeFileSync(join(tmpRepo, '.tokb/design.md'), realDesignMd);
-
-    // real fixture 는 regular_rounded 아이콘 스타일을 사용하므로 해당 폴더도 시드
-    const iconsRoot = join(tmpRepo, 'src/assets/icons');
-    const rrDir = join(iconsRoot, 'regular_rounded');
-    mkdirSync(rrDir, { recursive: true });
-    writeFileSync(join(rrDir, 'fi-bell.svg'), '<svg/>');
-    writeFileSync(join(rrDir, 'fi-home.svg'), '<svg/>');
 
     const result = bootstrapDesignAssets({ repoRoot: tmpRepo, skipCommit: true });
 
