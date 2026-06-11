@@ -2,6 +2,7 @@ import { Command } from 'commander'
 
 import { getPlanState, type PlanStateResponse } from '../lib/api.js'
 import { requireField } from '../lib/config.js'
+import { assertValidGroupKey } from '../lib/group-key.js'
 
 // ⚠️ pj-platform 의 lib/build-plan/constants.ts TDD_BYPASS_PHASES 와 동기 필수.
 // phase set 변경 시 양쪽 같이 업데이트. (cli 와 platform 의 drift 방지)
@@ -93,7 +94,11 @@ export interface BuildWorkerPromptArgs {
 
 export function buildWorkerPrompt(args: BuildWorkerPromptArgs): string {
   const { groupKey, phaseSlug, worktreePath, tasks } = args
+  // groupKey 는 prompt 의 셸 명령(git reset --hard feat/<gk>-group)·branch 에 박히므로
+  // sub_step(sanitizeSubStep) 과 동일하게 allow-list 검증 — instruction/셸 주입 방어.
+  assertValidGroupKey(groupKey)
   const branch = args.branch ?? `feat/${groupKey}-group`
+  const baseBranch = `feat/${groupKey}-group`
   const isBypass = TDD_BYPASS_PHASES.has(phaseSlug)
 
   const tddSection = isBypass
@@ -161,13 +166,17 @@ ${fence}
 ## bootstrap
 
 1. \`cd ${worktreePath}\`
-2. leader workspace 의 \`.env.local\` symlink (\`TOKB_PUSH_TOKEN\` 공유):
+2. **재개 잔재 정리 (wave 가 중간에 끊겨 이 task 를 재투입하는 경우):** 이 worktree 에 이전 시도 흔적이 남아있을 수 있다 — \`git status --short\` + \`git log --oneline ${baseBranch}..HEAD\` 로 먼저 확인.
+   - 이전 시도의 commit/변경이 남아 **불완전·깨진 상태**면 \`git reset --hard ${baseBranch} && git clean -fd\` 로 base 부터 새로 시작.
+   - 변경이 없거나(첫 dispatch) 멀쩡히 이어갈 수 있으면 그대로 진행.
+   - reset 후 재작업은 commit 을 새로 만들어 done 게이트를 통과하므로 이전 orphan commit 은 무해하다.
+3. leader workspace 의 \`.env.local\` symlink (\`TOKB_PUSH_TOKEN\` 공유):
    \`\`\`bash
    LEADER_ROOT=$(git rev-parse --show-superproject-working-tree 2>/dev/null || \\
                  dirname "$(dirname "$(dirname "$(pwd)")")")
    ln -sf "\${LEADER_ROOT}/.env.local" .env.local
    \`\`\`
-3. \`pnpm install --frozen-lockfile\`
+4. \`pnpm install --frozen-lockfile\`
 
 ## task 목록
 

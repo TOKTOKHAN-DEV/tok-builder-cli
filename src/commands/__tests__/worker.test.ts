@@ -99,6 +99,18 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).toContain('pnpm install --frozen-lockfile')
   })
 
+  it('bootstrap — wave 재개 시 잔재 정리 지시 (reset --hard base + clean)', () => {
+    const prompt = buildWorkerPrompt({
+      groupKey: 'auth',
+      phaseSlug: 'backend',
+      worktreePath: '/repo/.tokb/worktrees/auth',
+      tasks: [sampleCodeTask],
+    })
+    expect(prompt).toContain('재개 잔재 정리')
+    expect(prompt).toContain('git reset --hard feat/auth-group')
+    expect(prompt).toContain('git clean -fd')
+  })
+
   it('완료 보고 대상은 리더 (controller 표현 제거)', () => {
     const prompt = buildWorkerPrompt({
       groupKey: 'auth',
