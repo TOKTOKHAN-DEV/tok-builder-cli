@@ -258,17 +258,6 @@ describe('buildWorkerPrompt', () => {
     expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner | 권장 model: haiku]')
   })
 
-  it('escalated_to_model=sonnet 시 sub_step 매핑 무시 — prompt 안 sonnet 박힘 (Stage B)', () => {
-    const task: WorkerTask = {
-      ...sampleCodeTask,
-      id: 'u-build-test-esc',
-      sub_step: 'build_test',
-      last_failed_event_meta: { escalated_to_model: 'sonnet' },
-    }
-    const prompt = buildWorkerPrompt({ groupKey: 'g', phaseSlug: 'backend', worktreePath: '/p', tasks: [task] })
-    expect(prompt).toContain('[sub_step: build_test | 권장 SKILL: tokb-test-runner | 권장 model: sonnet]')
-  })
-
   // acceptance criteria 보고 단계 — worker 가 done 전에 tokb task criteria 로 정량/정성 인덱스를 보고해야
   // platform 의 acceptance_criteria_state 가 채워진다(체크박스 표시 + enforce phase 정량 게이트 통과).
   // 이 단계가 흐름에서 빠지면 task 는 done 인데 체크박스가 0/N 으로 남는다 (bypass phase 는 게이트도 없어 조용히 통과).
@@ -474,53 +463,45 @@ describe('workerPromptActionByTask (Stage A — task 단위 prompt)', () => {
 describe('resolveRecommendedModel (Stage B — sub_step → model 매핑)', () => {
   // 5 sub_step 각각 매핑
   it('build_test → haiku', () => {
-    expect(resolveRecommendedModel('build_test', undefined)).toBe('haiku')
+    expect(resolveRecommendedModel('build_test')).toBe('haiku')
   })
 
   it('infra → haiku', () => {
-    expect(resolveRecommendedModel('infra', undefined)).toBe('haiku')
+    expect(resolveRecommendedModel('infra')).toBe('haiku')
   })
 
   it('functional → sonnet', () => {
-    expect(resolveRecommendedModel('functional', undefined)).toBe('sonnet')
+    expect(resolveRecommendedModel('functional')).toBe('sonnet')
   })
 
   it('nfr → sonnet', () => {
-    expect(resolveRecommendedModel('nfr', undefined)).toBe('sonnet')
+    expect(resolveRecommendedModel('nfr')).toBe('sonnet')
   })
 
   it('codegen → sonnet', () => {
-    expect(resolveRecommendedModel('codegen', undefined)).toBe('sonnet')
+    expect(resolveRecommendedModel('codegen')).toBe('sonnet')
   })
 
   // fallback
   it('unknown sub_step → sonnet (DEFAULT)', () => {
-    expect(resolveRecommendedModel('unknown_xyz', undefined)).toBe('sonnet')
+    expect(resolveRecommendedModel('unknown_xyz')).toBe('sonnet')
   })
 
   it('null sub_step → sonnet (DEFAULT)', () => {
-    expect(resolveRecommendedModel(null, undefined)).toBe('sonnet')
+    expect(resolveRecommendedModel(null)).toBe('sonnet')
   })
 
   it('undefined sub_step → sonnet (DEFAULT)', () => {
-    expect(resolveRecommendedModel(undefined, undefined)).toBe('sonnet')
+    expect(resolveRecommendedModel(undefined)).toBe('sonnet')
   })
 
   // prototype pollution 방어
   it('constructor 키 → sonnet (prototype pollution 방어)', () => {
-    expect(resolveRecommendedModel('constructor', undefined)).toBe('sonnet')
+    expect(resolveRecommendedModel('constructor')).toBe('sonnet')
   })
 
   it('__proto__ 키 → sonnet (prototype pollution 방어)', () => {
-    expect(resolveRecommendedModel('__proto__', undefined)).toBe('sonnet')
+    expect(resolveRecommendedModel('__proto__')).toBe('sonnet')
   })
 
-  // escalated_to_model 우선 흐름
-  it('escalated_to_model=sonnet 명시 → sub_step build_test 여도 sonnet 반환', () => {
-    expect(resolveRecommendedModel('build_test', 'sonnet')).toBe('sonnet')
-  })
-
-  it('escalated_to_model=haiku 명시 → sub_step functional 여도 haiku 반환', () => {
-    expect(resolveRecommendedModel('functional', 'haiku')).toBe('haiku')
-  })
 })

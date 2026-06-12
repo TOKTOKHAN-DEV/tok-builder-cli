@@ -24,7 +24,6 @@ export interface WaveTask {
   output_artifacts: Array<{ path: string; kind: string }> | null | undefined
   // 권장 model 계산용 (wave next 출력에 recommended_model 부착) — computeNextWave 는 안 쓰고 보존만.
   sub_step?: string | null
-  last_failed_event_meta?: { escalated_to_model?: 'haiku' | 'sonnet' } | null
 }
 
 export interface ComputeNextWaveInput {
@@ -140,7 +139,7 @@ export type WaveTaskWithModel = WaveTask & { recommended_model: 'haiku' | 'sonne
 export function attachRecommendedModel(tasks: WaveTask[]): WaveTaskWithModel[] {
   return tasks.map((t) => ({
     ...t,
-    recommended_model: resolveRecommendedModel(t.sub_step, t.last_failed_event_meta?.escalated_to_model),
+    recommended_model: resolveRecommendedModel(t.sub_step),
   }))
 }
 
@@ -383,7 +382,6 @@ async function fetchPhaseTasks(phaseSlug: string): Promise<WaveTask[]> {
         depends_on_client_ids: t.depends_on_client_ids,
         output_artifacts: t.output_artifacts,
         sub_step: t.sub_step,
-        last_failed_event_meta: t.last_failed_event_meta,
       })
     }
   }

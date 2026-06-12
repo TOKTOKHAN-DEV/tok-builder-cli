@@ -43,12 +43,7 @@ const DEFAULT_RECOMMENDED_MODEL = 'sonnet' as const
 
 export function resolveRecommendedModel(
   rawSubStep: string | null | undefined,
-  escalatedToModel: 'haiku' | 'sonnet' | undefined,
 ): 'haiku' | 'sonnet' {
-  // Stage B: events meta 의 escalated_to_model 우선
-  if (escalatedToModel === 'haiku' || escalatedToModel === 'sonnet') {
-    return escalatedToModel
-  }
   const sub = sanitizeSubStep(rawSubStep)
   if (sub === null || sub === 'invalid') return DEFAULT_RECOMMENDED_MODEL
   return SUB_STEP_RECOMMENDED_MODEL[sub] ?? DEFAULT_RECOMMENDED_MODEL
@@ -142,8 +137,7 @@ ${
       const subStep = sanitizeSubStep(t.sub_step)
       const recommendedSkill =
         (subStep && SUB_STEP_RECOMMENDED_SKILL[subStep]) ?? DEFAULT_RECOMMENDED_SKILL
-      const escalatedTo = t.last_failed_event_meta?.escalated_to_model
-      const recommendedModel = resolveRecommendedModel(t.sub_step, escalatedTo)
+      const recommendedModel = resolveRecommendedModel(t.sub_step)
       const subStepLine = `[sub_step: ${subStep ?? '-'} | 권장 SKILL: ${recommendedSkill} | 권장 model: ${recommendedModel}]`
       return `### ${t.client_id} (uuid: ${t.id})
 ${subStepLine}
