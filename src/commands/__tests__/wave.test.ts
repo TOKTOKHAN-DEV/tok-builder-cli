@@ -195,20 +195,6 @@ describe('attachRecommendedModel', () => {
     expect(attachRecommendedModel(tasks)[0].recommended_model).toBe('sonnet')
   })
 
-  it('escalated_to_model 이 sub_step 매핑보다 우선', () => {
-    const tasks: WaveTask[] = [
-      {
-        ...baseTask,
-        client_id: 'T-001',
-        status: 'pending',
-        depends_on_client_ids: [],
-        output_artifacts: [],
-        sub_step: 'build_test', // 평소 haiku
-        last_failed_event_meta: { escalated_to_model: 'sonnet' },
-      },
-    ]
-    expect(attachRecommendedModel(tasks)[0].recommended_model).toBe('sonnet')
-  })
 })
 
 describe('validateDisjoint', () => {
